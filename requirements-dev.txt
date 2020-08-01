@@ -1,0 +1,8 @@
+flake8
+coverage
+mypy
+twine
+boto3
+google-cloud-storage >= 1.26.0
+terra-notebook-utils
+-r requirements.txt
