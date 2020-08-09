@@ -1,66 +1,66 @@
 import io
-import requests
 from math import ceil
-from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+from collections import deque
+from concurrent.futures import ProcessPoolExecutor
 from typing import Optional, Tuple, Generator
 
-from streaming_urls.config import default_chunk_size, reader_retries
-from streaming_urls.async_collections import AsyncQueue, AsyncPool
+from streaming_urls.http import http_session
+from streaming_urls.config import default_chunk_size
+from streaming_urls.concurrent import ConcurrentQueue, ConcurrentPool, SharedCircularBuffer, SharedBufferArray
 
+
+http = http_session()
 
 class Reader(io.IOBase):
     """
-    Readable stream on top of GS blob. Bytes are fetched in chunks of `chunk_size`.
-    Chunks are downloaded with concurrency equal to `threads`.
+    Chunks are downloaded with concurrency equal to `concurrency`.
 
-    Concurrency can be disabled by passing in`threads=None`.
+    Concurrency can be disabled by passing in`concurrency=None`.
     """
-    def __init__(self, url: str, chunk_size: int=default_chunk_size, threads: Optional[int]=1):
+    def __init__(self, url: str, chunk_size: int=default_chunk_size, concurrency: Optional[int]=3):
         assert chunk_size >= 1
         self.url = url
+        self.size = http.size(url)
         self.chunk_size = chunk_size
-        self._buffer = bytearray()
-        self._pos = 0
-        self.size = _get_size(url)
-        self.number_of_chunks = ceil(self.size / self.chunk_size)
-        self._unfetched_chunks = [i for i in range(self.number_of_chunks)]
-        if threads is not None:
-            assert 1 <= threads
-            self.executor = ThreadPoolExecutor(max_workers=threads)
-            self.future_chunk_downloads = AsyncQueue(self.executor, concurrency=threads)
-            for chunk_number in self._unfetched_chunks:
-                self.future_chunk_downloads.put(self._fetch_chunk, chunk_number)
+        if concurrency is not None:
+            assert 1 <= concurrency
+            self._start = self._stop = 0
+            self._buf = SharedCircularBuffer(size=(2 * concurrency + 1) * chunk_size, create=True)
+            self.max_read = concurrency * chunk_size
+            self.executor = ProcessPoolExecutor(max_workers=concurrency)
+            self.future_parts = ConcurrentQueue(self.executor, concurrency=concurrency)
+            for part_coord in part_coords(self.size, self.chunk_size):
+                self.future_parts.put(_fetch_part, self.url, *part_coord, self._buf.name)
         else:
-            resp = requests.get(url, stream=True)
-            resp.raise_for_status()
-            self._raw_stream = resp.raw
-
-    def _fetch_chunk(self, chunk_number: int) -> bytes:
-        start_chunk = chunk_number * self.chunk_size
-        end_chunk = start_chunk + self.chunk_size - 1
-        if chunk_number == (self.number_of_chunks - 1):
-            expected_part_size = self.size % self.chunk_size or self.chunk_size
-        else:
-            expected_part_size = self.chunk_size
-        return _download_chunk_from_url(self.url, start_chunk, end_chunk, expected_part_size)
+            self._raw_stream = http.raw(url)
+            self.max_read = self.size
 
     def readable(self):
         return True
 
-    def read(self, size: int=-1) -> bytes:
-        if -1 == size:
-            size = self.size
+    def read(self, sz: int=-1) -> memoryview:
+        """
+        Read at most 'sz' bytes from stream and provide a 'memoryview'.. The user is expected to call 'release' on the
+        view to facilitate program exit.
+        """
+        if -1 == sz:
+            sz = self.size
         if hasattr(self, "_raw_stream"):
-            return self._raw_stream.read(size)
+            return memoryview(self._raw_stream.read(sz))
         else:
-            if size + self._pos > len(self._buffer):
-                del self._buffer[:self._pos]
-                while size > len(self._buffer) and len(self.future_chunk_downloads):
-                    self._buffer += self.future_chunk_downloads.get()
-                self._pos = 0
-            ret_data = bytes(memoryview(self._buffer)[self._pos:self._pos + size])
-            self._pos += len(ret_data)
-            return ret_data
+            # avoid overwite in circular buffer
+            sz = min(sz, self.max_read)
+            while sz > self._stop - self._start and len(self.future_parts):
+                _, _, part_size = self.future_parts.get()
+                self._stop += part_size
+            sz = min(sz, self._stop - self._start)  # don't overflow end of data
+            if sz:
+                res = self._buf[self._start: self._start + sz]
+                self._start += len(res)
+            else:
+                res = memoryview(bytes())
+            return res
 
     def readinto(self, buff: bytearray) -> int:
         if hasattr(self, "_raw_stream"):
@@ -69,6 +69,7 @@ class Reader(io.IOBase):
             d = self.read(len(buff))
             bytes_read = len(d)
             buff[:bytes_read] = d
+            d.release()
             return bytes_read
 
     def seek(self, *args, **kwargs):
@@ -88,65 +89,81 @@ class Reader(io.IOBase):
             self._raw_stream.close()
         if hasattr(self, "executor"):
             self.executor.shutdown()
+        if hasattr(self, "_buf"):
+            self._buf.close()
         super().close()
 
-def _get_size(url: str) -> int:
-    resp = requests.get(url, stream=True)
-    resp.raise_for_status()
-    return int(resp.headers['Content-Length'])
+def _number_of_parts(size: int, chunk_size: int) -> int:
+    return ceil(size / chunk_size)
 
-def for_each_chunk(url: str, chunk_size: int=default_chunk_size, threads: Optional[int]=1):
-    """
-    Fetch chunks and yield in order. Chunks are downloaded with concurrency equal to `threads`
-    """
-    reader = Reader(url, chunk_size=chunk_size)
-    if threads is not None:
-        assert 1 <= threads
-        with ThreadPoolExecutor(max_workers=threads) as e:
-            future_chunk_downloads = AsyncQueue(e, concurrency=threads)
-            for chunk_number in reader._unfetched_chunks:
-                future_chunk_downloads.put(reader._fetch_chunk, chunk_number)
-            for chunk in future_chunk_downloads.consume():
-                yield chunk
+def _part_range(size: int, chunk_size: int, part_id: int) -> Tuple[int, int]:
+    start = part_id * chunk_size
+    if part_id == (_number_of_parts(size, chunk_size) - 1):
+        part_size = size % chunk_size or chunk_size
     else:
-        resp = requests.get(url, stream=True)
-        resp.raise_for_status()
-        for chunk in resp.iter_content(chunk_size=chunk_size):
-            yield chunk
+        part_size = chunk_size
+    return start, part_size
 
-def for_each_chunk_async(url: str,
-                         chunk_size: int=default_chunk_size,
-                         threads: int=2) -> Generator[Tuple[int, bytes], None, None]:
+def part_coords(size: int, chunk_size: int):
+    for part_id in range(_number_of_parts(size, chunk_size)):
+        start, part_size = _part_range(size, chunk_size, part_id)
+        yield part_id, start, part_size
+
+def _fetch_part(url: str, part_id: int, start: int, part_size: int, sb_name: str) -> Tuple[int, int, int]:
+    # This method is executed in subprocesses. Rerferences to global variables should be avoided.
+    # See https://docs.python.org/3/library/multiprocessing.html#programming-guidelines
+    buf = SharedCircularBuffer(sb_name)
+    http_session().get_range_readinto(url, start, part_size, buf[start: start + part_size])
+    return part_id, start, part_size
+
+def for_each_part(url: str, chunk_size: int=default_chunk_size, concurrency: Optional[int]=3):
     """
-    Fetch chunks with concurrency equal to `threads`, yielding results as soon as available.
+    Fetch chunks and yield in order. Chunks are downloaded with concurrency equal to `concurrency`
+    Chunks are 'memoryview' objects that may be pointing to multiprocessing shared memory.
+    It is the responsibility of the user to call 'release' on each chunk to facilitate program exit.
+    """
+    if concurrency is not None:
+        assert 1 <= concurrency
+        size = http.size(url)
+        with SharedCircularBuffer(size=chunk_size * concurrency, create=True) as buff:
+            with ProcessPoolExecutor(max_workers=concurrency) as e:
+                future_parts = ConcurrentQueue(e, concurrency=concurrency)
+                for part_coord in part_coords(size, chunk_size):
+                    future_parts.put(_fetch_part, url, *part_coord, buff.name)
+                for part_id, start, part_size in future_parts:
+                    yield buff[start: start + part_size]
+    else:
+        for chunk in http.iter_content(url, chunk_size=chunk_size):
+            yield memoryview(chunk)
+
+def _fetch_part_ar(url: str,
+                   part_id: int,
+                   start: int,
+                   part_size: int,
+                   sb_name: str,
+                   sb_index: int) -> Tuple[int, int, int, int]:
+    buf = SharedBufferArray(sb_name)
+    http.get_range_readinto(url, start, part_size, buf[sb_index][:part_size])
+    return part_id, start, part_size, sb_index
+
+def for_each_part_async(url: str,
+                        chunk_size: int=default_chunk_size,
+                        concurrency: int=3) -> Generator[Tuple[int, bytes], None, None]:
+    """
+    Fetch chunks with concurrency equal to `concurrency`, yielding results as soon as available.
     Results may be returned in any order.
+    Chunks are 'memoryview' objects that may be pointing to multiprocessing shared memory.
+    It is the responsibility of the user to call 'release' on each chunk to facilitate program exit.
     """
-    assert 1 <= threads
-    reader = Reader(url, chunk_size)
-
-    def fetch_chunk(chunk_number):
-        chunk = reader._fetch_chunk(chunk_number)
-        return chunk_number, chunk
-
-    with ThreadPoolExecutor(max_workers=threads) as e:
-        chunks = AsyncPool(e, threads)
-        for fetch_chunk_number in range(reader.number_of_chunks):
-            for chunk_number, chunk in chunks.consume_finished():
-                yield chunk_number, chunk
-                break
-            chunks.put(fetch_chunk, fetch_chunk_number)
-        for chunk_number, chunk in chunks.consume():
-            yield chunk_number, chunk
-
-def _download_chunk_from_url(url: str, start: int, end: int, expected_size: Optional[int]=None) -> bytes:
-    if expected_size is None:
-        resp = requests.get(url, headers=dict(Range=f"bytes={start}-{end}"))
-        resp.raise_for_status()
-        return resp.content
-    else:
-        for _ in range(reader_retries):
-            resp = requests.get(url, headers=dict(Range=f"bytes={start}-{end}"))
-            resp.raise_for_status()
-            if expected_size == len(resp.content):
-                return resp.content
-        raise ValueError("Unexpected part size")
+    assert 1 <= concurrency
+    size = http.size(url)
+    parts_to_fetch = deque(part_coords(size, chunk_size))
+    with SharedBufferArray(chunk_size=chunk_size, num_chunks=concurrency, create=True) as buff:
+        with ProcessPoolExecutor(max_workers=concurrency) as e:
+            future_parts = ConcurrentPool(e, concurrency)
+            for i in range(concurrency):
+                future_parts.put(_fetch_part_ar, url, *parts_to_fetch.popleft(), buff.name, i)
+            for part_id, start, part_size, i in future_parts:
+                yield part_id, buff[i][:part_size]
+                if parts_to_fetch:
+                    future_parts.put(_fetch_part_ar, url, *parts_to_fetch.popleft(), buff.name, i)

@@ -1,8 +1,15 @@
 include common.mk
 
 MODULES=streaming_urls
+tests:=$(wildcard tests/test_*.py)
 
-test: lint mypy tests
+test: lint mypy $(tests)
+	coverage combine
+	rm -f .coverage.*
+
+# A pattern rule that runs a single test script
+$(tests): %.py :
+	coverage run -p --source=streaming-urls $*.py --verbose
 
 lint:
 	flake8 $(MODULES) *.py
@@ -10,9 +17,8 @@ lint:
 mypy:
 	mypy --ignore-missing-imports $(MODULES)
 
-tests:
-	PYTHONWARNINGS=ignore:ResourceWarning coverage run --source=streaming_urls \
-		-m unittest discover --start-directory tests --top-level-directory . --verbose
+benchmark:
+	python tests/benchmark.py
 
 version: streaming_urls/version.py
 
@@ -28,4 +34,4 @@ build: clean version
 install: build
 	pip install --upgrade dist/*.whl
 
-.PHONY: test lint mypy tests streaming_urls/version.py clean build install
+.PHONY: $(tests) benchmark streaming_urls/version.py clean build install

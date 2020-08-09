@@ -3,6 +3,5 @@ coverage
 mypy
 twine
 boto3
-google-cloud-storage >= 1.26.0
-terra-notebook-utils
+google-cloud-storage >= 1.37.1
 -r requirements.txt

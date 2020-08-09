@@ -3,17 +3,17 @@ import io
 import os
 import sys
 import time
+import random
 import unittest
-from random import randint
 from concurrent.futures import ThreadPoolExecutor
 
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from streaming_urls.async_collections import _AsyncCollection, AsyncPool, AsyncQueue
+from streaming_urls.concurrent import ConcurrentPool, ConcurrentQueue
 
 
-class CommonAsyncCollectionTests:
+class ConcurrentCollectionTests:
     ac_class = None
 
     def setUp(self):
@@ -42,83 +42,84 @@ class CommonAsyncCollectionTests:
             with self.assertRaises(RuntimeError):
                 fs.get()
 
-        with self.subTest("consume should raise"):
+        with self.subTest("iteration should raise"):
             fs = self.ac_class(self.executor)
             fs.put(func_that_raises)
             with self.assertRaises(RuntimeError):
-                [a for a in fs.consume()]
+                [a for a in fs]
 
-class TestAsyncPool(CommonAsyncCollectionTests, unittest.TestCase):
-    ac_class = AsyncPool
+class TestConcurrentPool(ConcurrentCollectionTests, unittest.TestCase):
+    ac_class = ConcurrentPool
 
     def test_normal(self):
         numbers = [2,3,5,7,11,13,17]
         with self.subTest("put and get"):
-            fs = AsyncPool(self.executor)
+            fs = ConcurrentPool(self.executor)
             for n in numbers:
                 fs.put(_wait_and_return, n)
             returned_numbers = list()
             while fs:
                 returned_numbers.append(fs.get())
-            self.assertEqual(sum(returned_numbers), sum(numbers))
+            self.assertEqual(sorted(returned_numbers), sorted(numbers))
 
-        with self.subTest("put and consume"):
-            fs = AsyncPool(self.executor)
+        with self.subTest("put and iterate"):
+            fs = ConcurrentPool(self.executor)
             for n in numbers:
                 fs.put(_wait_and_return, n)
-            returned_numbers = [n for n in fs.consume()]
-            self.assertEqual(sum(returned_numbers), sum(numbers))
+            returned_numbers = [n for n in fs]
+            self.assertEqual(sorted(returned_numbers), sorted(numbers))
 
     def test_block_on_put(self):
         numbers = [2,3,5]
         with self.subTest("block if concurrency >= 1"):
-            fs = AsyncPool(self.executor, concurrency=2)
+            fs = ConcurrentPool(self.executor, concurrency=2)
             start_time = time.time()
             for n in numbers:
-                fs.put(_wait_and_return, n)
+                fs.put(_wait_and_return, n, wait=2)
             self.assertGreater(time.time() - start_time, 2)
-            self.assertEqual(sum(numbers), sum([n for n in fs.consume()]))
+            self.assertEqual(sorted(numbers), sorted([n for n in fs]))
         with self.subTest("raise if concurrency <= 0"):
             with self.assertRaises(AssertionError):
-                fs = AsyncPool(self.executor, concurrency=0)
+                fs = ConcurrentPool(self.executor, concurrency=0)
             with self.assertRaises(AssertionError):
-                fs = AsyncPool(self.executor, concurrency=-1)
+                fs = ConcurrentPool(self.executor, concurrency=-1)
 
-class TestAsyncQueue(CommonAsyncCollectionTests, unittest.TestCase):
-    ac_class = AsyncQueue
+class TestConcurrentQueue(ConcurrentCollectionTests, unittest.TestCase):
+    ac_class = ConcurrentQueue
 
     def test_normal(self):
         numbers = [2,3,5,7,11,13,17]
-        with self.subTest("put  and get"):
-            fs = AsyncQueue(self.executor)
+        with self.subTest("put and get"):
+            fs = ConcurrentQueue(self.executor)
             for n in numbers:
-                fs.put (_wait_and_return, n)
+                fs.put(_wait_and_return, n)
             returned_numbers = list()
             while fs:
                 returned_numbers.append(fs.get())
             self.assertEqual(returned_numbers, numbers)
-        with self.subTest("put and consume"):
-            fs = AsyncQueue(self.executor)
+        with self.subTest("put and iterate"):
+            fs = ConcurrentQueue(self.executor)
             for n in numbers:
-                fs.put (_wait_and_return, n)
-            returned_numbers = [n for n in fs.consume()]
+                fs.put(_wait_and_return, n)
+            returned_numbers = [n for n in fs]
             self.assertEqual(returned_numbers, numbers)
 
     def test_limited_execution(self):
         numbers = [2,3,5]
         with self.subTest("limit execution to concurrency"):
-            fs = AsyncQueue(self.executor, concurrency=2)
+            fs = ConcurrentQueue(self.executor, concurrency=2)
             for n in numbers:
                 fs.put(_wait_and_return, n)
             self.assertEqual(2, len(fs._futures))
         with self.subTest("raise if concurrency <= 0"):
             with self.assertRaises(AssertionError):
-                fs = AsyncQueue(self.executor, concurrency=0)
+                fs = ConcurrentQueue(self.executor, concurrency=0)
             with self.assertRaises(AssertionError):
-                fs = AsyncQueue(self.executor, concurrency=-1)
+                fs = ConcurrentQueue(self.executor, concurrency=-1)
 
-def _wait_and_return(i):
-    time.sleep(randint(2, 3))
+def _wait_and_return(i, wait=None):
+    wait = wait or random.random() / 2
+    time.sleep(wait)
     return i
 
 if __name__ == '__main__':
