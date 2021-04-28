@@ -71,6 +71,42 @@ class Session(requests.Session):
             return name
         raise ValueError(f"Unable to extract name from url '{url}'")
 
+    def checksums(self, url: str):
+        """
+        Extract checksum hashes from headers.
+
+        Checksums for Google Storage:
+        The md5 checksum may be missing for some GS objects such as large composite files, however the crc32c checksum
+        will always be present. It is safest to always use crc32c, although this method will provide both when present.
+        https://cloud.google.com/storage/docs/hashes-etags
+
+        Checksums for AWS S3:
+        S3 objects provide an "ETag" header, which is the same as md5 for small objects. For large multipart objects it
+        is a more complex object.
+        https://docs.aws.amazon.com/AmazonS3/latest/API/RESTCommonResponseHeaders.html
+
+        Content-MD5:
+        https://tools.ietf.org/html/rfc1864
+        """
+        headers = self.head(url)
+        checksums = dict()
+        if 'x-goog-hash' in headers:
+            for part in headers['x-goog-hash'].split(","):
+                name, val = part.strip().split("=", 1)
+                if "crc32c" == name:
+                    checksums['gs_crc32c'] = val
+                if "md5" == name:
+                    checksums['gs_md5'] = val
+        if 'ETag' in headers:
+            etag = headers['ETag'].strip("\"")
+            if "AmazonS3" in headers.get('Server', ""):
+                checksums['s3_etag'] = etag
+            else:
+                checksums['etag'] = etag
+        if 'Content-MD5' in headers:
+            checksums['md5'] = headers['Content-MD5']
+        return checksums
+
 def http_session(session: Session=None, retry: Retry=None) -> Session:
     session = session or Session()
     retry = retry or default_retry
