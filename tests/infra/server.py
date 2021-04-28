@@ -1,18 +1,14 @@
+import socket
 import threading
+from contextlib import closing
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self, *args, **kwargs):
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/binary')
-        self.end_headers()
-        self.wfile.write(b"xyz")
-
 class ThreadedLocalServer(threading.Thread):
-    def __init__(self, address=('', 8000), handler_class=Handler):
+    def __init__(self, handler_class: BaseHTTPRequestHandler):
         super().__init__(daemon=True)
-        self.address = address
+        self.port = _get_port()
+        self.host = f"http://localhost:{self.port}"
         self._handler_class = handler_class
         self._server = None
         self._server_ready = threading.Event()
@@ -22,7 +18,7 @@ class ThreadedLocalServer(threading.Thread):
         self._server_ready.wait()
 
     def run(self):
-        self._server = HTTPServer(self.address, self._handler_class)
+        self._server = HTTPServer(('', self.port), self._handler_class)
         self._server_ready.set()
         self._server.serve_forever()
 
@@ -32,9 +28,14 @@ class ThreadedLocalServer(threading.Thread):
         self.join(timeout=5)
         assert not self.is_alive(), "Failed to join thread"
 
-    def __enter__(self):
+    def __enter__(self) -> str:
         self.start()
-        return self
+        return self.host
 
     def __exit__(self, *args):
         self.shutdown()
+
+def _get_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+        sock.bind(('', 0))
+        return sock.getsockname()[1]
