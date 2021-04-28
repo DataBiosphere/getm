@@ -25,11 +25,7 @@ def setUpModule():
 def tearDownModule():
     GS.client._http.close()
 
-class TestHandler(BaseHTTPRequestHandler):
-    def do_GET(self, *args, **kwargs):
-        self.send_response(500)
-        self.end_headers()
-
+class SilentHandler(BaseHTTPRequestHandler):
     def log_message(self, *args, **kwargs):
         pass
 
@@ -52,7 +48,12 @@ class TestHTTP(unittest.TestCase):
         warnings.filterwarnings("ignore", category=ResourceWarning)
 
     def test_retry(self):
-        with ThreadedLocalServer(('', 8000), handler_class=TestHandler):
+        class Handler(SilentHandler):
+            def do_GET(self, *args, **kwargs):
+                self.send_response(500)
+                self.end_headers()
+
+        with ThreadedLocalServer(Handler) as host:
             expected_recount = 3
             retry_count = dict(count=0)
 
@@ -65,7 +66,7 @@ class TestHTTP(unittest.TestCase):
                                               status_forcelist=[500],
                                               allowed_methods=["GET"])) as http:
                 try:
-                    http.get("http://localhost:8000")
+                    http.get(host)
                 except requests.exceptions.RetryError:
                     pass
 
