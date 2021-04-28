@@ -79,5 +79,33 @@ class TestHTTP(unittest.TestCase):
                 with http_session() as http:
                     self.assertEqual(expected_size, http.size(url))
 
+    def test_name(self):
+        class HeadHandler(SilentHandler):
+            content_disp = None
+
+            def do_HEAD(self, *args, **kwargs):
+                self.send_response(200)
+                if self.content_disp is not None:
+                    self.send_header("Content-Disposition", self.content_disp)
+                self.end_headers()
+
+        with ThreadedLocalServer(HeadHandler) as host:
+            tests = [
+                ("xyzy-1", "bar; filename=\"xyzy-1\"; blah", f"{host}/foof"),
+                ("xyzy-2", "foo; bar filename=\"asf\"; blah", f"{host}/xyzy-2"),
+                ("xyzy-3", "foo; filename=; blah", f"{host}/foo/xyzy-3"),
+                ("xyzy-4", None, f"{host}/foo/xyzy-4"),
+            ]
+            with http_session() as http:
+                for expected, content_disp, url in tests:
+                    HeadHandler.content_disp = content_disp
+                    with self.subTest(expected_name=expected, content_disp=content_disp, url=url):
+                        self.assertEqual(expected, http.name(url))
+
+                with self.subTest("Should raise for indeterminate name"):
+                    with self.assertRaises(ValueError):
+                        url, HeadHandler.content_disp = host, None
+                        http.name(url)
+
 if __name__ == '__main__':
     unittest.main()
