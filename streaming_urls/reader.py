@@ -14,9 +14,9 @@ http = http_session()
 
 class Reader(io.IOBase):
     """
-    Chunks are downloaded with concurrency equal to `concurrency`.
-
-    Concurrency can be disabled by passing in`concurrency=None`.
+    Provide a streaming object to bytes referenced by 'url'. Chunks of data are pre-fetched in the background with
+    concurrency='concurrency'. When concurrency is disabled entirely, this wraps streaming objects provided by the
+    `requests` library.
     """
     def __init__(self, url: str, chunk_size: int=default_chunk_size, concurrency: Optional[int]=3):
         assert chunk_size >= 1
@@ -41,8 +41,8 @@ class Reader(io.IOBase):
 
     def read(self, sz: int=-1) -> memoryview:
         """
-        Read at most 'sz' bytes from stream and provide a 'memoryview'.. The user is expected to call 'release' on the
-        view to facilitate program exit.
+        Read at most 'sz' bytes from stream as a memoryview object referencing multiprocessing shared memory. The
+        caller is expected to call 'release' on each such object.
         """
         if -1 == sz:
             sz = self.size
@@ -118,9 +118,8 @@ def _fetch_part(url: str, part_id: int, start: int, part_size: int, sb_name: str
 
 def for_each_part(url: str, chunk_size: int=default_chunk_size, concurrency: Optional[int]=3):
     """
-    Fetch chunks and yield in order. Chunks are downloaded with concurrency equal to `concurrency`
-    Chunks are 'memoryview' objects that may be pointing to multiprocessing shared memory.
-    It is the responsibility of the user to call 'release' on each chunk to facilitate program exit.
+    Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
+    objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
     """
     if concurrency is not None:
         assert 1 <= concurrency
@@ -150,10 +149,9 @@ def for_each_part_async(url: str,
                         chunk_size: int=default_chunk_size,
                         concurrency: int=3) -> Generator[Tuple[int, bytes], None, None]:
     """
-    Fetch chunks with concurrency equal to `concurrency`, yielding results as soon as available.
-    Results may be returned in any order.
-    Chunks are 'memoryview' objects that may be pointing to multiprocessing shared memory.
-    It is the responsibility of the user to call 'release' on each chunk to facilitate program exit.
+    Fetch parts and yield in any order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
+    objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
+    This method may offer slightly better performance than 'for_each_part'.
     """
     assert 1 <= concurrency
     size = http.size(url)
