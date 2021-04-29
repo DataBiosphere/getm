@@ -142,8 +142,10 @@ def _fetch_part_ar(url: str,
                    part_size: int,
                    sb_name: str,
                    sb_index: int) -> Tuple[int, int, int, int]:
+    # This method is executed in subprocesses. Rerferences to global variables should be avoided.
+    # See https://docs.python.org/3/library/multiprocessing.html#programming-guidelines
     buf = SharedBufferArray(sb_name)
-    http.get_range_readinto(url, start, part_size, buf[sb_index][:part_size])
+    http_session().get_range_readinto(url, start, part_size, buf[sb_index][:part_size])
     return part_id, start, part_size, sb_index
 
 def for_each_part_async(url: str,
