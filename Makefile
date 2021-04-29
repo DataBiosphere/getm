@@ -9,7 +9,7 @@ test: lint mypy $(tests)
 
 # A pattern rule that runs a single test script
 $(tests): %.py :
-	coverage run -p --source=streaming-urls $*.py --verbose
+	coverage run -p --source=streaming_urls $*.py --verbose
 
 lint:
 	flake8 $(MODULES) *.py
