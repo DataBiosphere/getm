@@ -29,6 +29,16 @@ class SilentHandler(BaseHTTPRequestHandler):
     def log_message(self, *args, **kwargs):
         pass
 
+class HeadHandler(SilentHandler):
+    test_headers = dict()
+
+    def do_HEAD(self, *args, **kwargs):
+        self.send_response(200)
+        for k, v in self.test_headers.items():
+            if v is not None:
+                self.send_header(k, v)
+        self.end_headers()
+
 class TestHTTP(unittest.TestCase):
     def setUp(self):
         suppress_warnings()
@@ -80,15 +90,6 @@ class TestHTTP(unittest.TestCase):
                     self.assertEqual(expected_size, http.size(url))
 
     def test_name(self):
-        class HeadHandler(SilentHandler):
-            content_disp = None
-
-            def do_HEAD(self, *args, **kwargs):
-                self.send_response(200)
-                if self.content_disp is not None:
-                    self.send_header("Content-Disposition", self.content_disp)
-                self.end_headers()
-
         with ThreadedLocalServer(HeadHandler) as host:
             tests = [
                 ("xyzy-1", "bar; filename=\"xyzy-1\"; blah", f"{host}/foof"),
@@ -98,7 +99,7 @@ class TestHTTP(unittest.TestCase):
             ]
             with http_session() as http:
                 for expected, content_disp, url in tests:
-                    HeadHandler.content_disp = content_disp
+                    HeadHandler.test_headers['Content-Disposition'] = content_disp
                     with self.subTest(expected_name=expected, content_disp=content_disp, url=url):
                         self.assertEqual(expected, http.name(url))
 
@@ -106,6 +107,20 @@ class TestHTTP(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         url, HeadHandler.content_disp = host, None
                         http.name(url)
+
+    def test_checksums(self):
+        tests = [
+            (dict(gs_crc32c="a", gs_md5="b", etag="c"), {'x-goog-hash': "crc32c=a, md5=b", 'ETag': "c"}),
+            (dict(s3_etag="d"), {'Server': "AmazonS3", 'ETag': "d"}),
+            (dict(md5="e"), {'Content-MD5': "e"}),
+            (dict(), {}),
+        ]
+
+        with ThreadedLocalServer(HeadHandler) as host:
+            with http_session() as http:
+                for expected, test_headers in tests:
+                    HeadHandler.test_headers = test_headers
+                    self.assertEqual(expected, http.checksums(f"{host}/{uuid4()}"))
 
 if __name__ == '__main__':
     unittest.main()
