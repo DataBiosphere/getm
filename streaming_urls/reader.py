@@ -3,22 +3,25 @@ from math import ceil
 from functools import lru_cache
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor
-from typing import Optional, Tuple, Generator
+from typing import Optional, Generator, Tuple
 
+from streaming_urls import config
 from streaming_urls.http import http_session
-from streaming_urls.config import default_chunk_size
 from streaming_urls.concurrent import ConcurrentQueue, ConcurrentPool, SharedCircularBuffer, SharedBufferArray
 
 
 http = http_session()
 
-class Reader(io.IOBase):
+class URLReader(io.IOBase):
     """
     Provide a streaming object to bytes referenced by 'url'. Chunks of data are pre-fetched in the background with
     concurrency='concurrency'. When concurrency is disabled entirely, this wraps streaming objects provided by the
     `requests` library.
     """
-    def __init__(self, url: str, chunk_size: int=default_chunk_size, concurrency: Optional[int]=3):
+    def __init__(self,
+                 url: str,
+                 chunk_size: int=config.default_chunk_size,
+                 concurrency: Optional[int]=config.default_concurrency):
         assert chunk_size >= 1
         self.url = url
         self.size = http.size(url)
@@ -116,7 +119,9 @@ def _fetch_part(url: str, part_id: int, start: int, part_size: int, sb_name: str
     http_session().get_range_readinto(url, start, part_size, buf[start: start + part_size])
     return part_id, start, part_size
 
-def for_each_part(url: str, chunk_size: int=default_chunk_size, concurrency: Optional[int]=3):
+def iter_content(url: str,
+                 chunk_size: int=config.default_chunk_size,
+                 concurrency: Optional[int]=config.default_concurrency):
     """
     Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
     objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
@@ -135,7 +140,7 @@ def for_each_part(url: str, chunk_size: int=default_chunk_size, concurrency: Opt
         for chunk in http.iter_content(url, chunk_size=chunk_size):
             yield memoryview(chunk)
 
-def _fetch_part_ar(url: str,
+def _fetch_part_uo(url: str,
                    part_id: int,
                    start: int,
                    part_size: int,
@@ -147,13 +152,13 @@ def _fetch_part_ar(url: str,
     http_session().get_range_readinto(url, start, part_size, buf[sb_index][:part_size])
     return part_id, start, part_size, sb_index
 
-def for_each_part_async(url: str,
-                        chunk_size: int=default_chunk_size,
-                        concurrency: int=3) -> Generator[Tuple[int, bytes], None, None]:
+def iter_content_unordered(url: str,
+                           chunk_size: int=config.default_chunk_size,
+                           concurrency: int=config.default_concurrency) -> Generator[Tuple[int, bytes], None, None]:
     """
     Fetch parts and yield in any order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
     objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
-    This method may offer slightly better performance than 'for_each_part'.
+    This method may offer slightly better performance than 'iter_content'.
     """
     assert 1 <= concurrency
     size = http.size(url)
@@ -162,8 +167,8 @@ def for_each_part_async(url: str,
         with ProcessPoolExecutor(max_workers=concurrency) as e:
             future_parts = ConcurrentPool(e, concurrency)
             for i in range(concurrency):
-                future_parts.put(_fetch_part_ar, url, *parts_to_fetch.popleft(), buff.name, i)
+                future_parts.put(_fetch_part_uo, url, *parts_to_fetch.popleft(), buff.name, i)
             for part_id, start, part_size, i in future_parts:
                 yield part_id, buff[i][:part_size]
                 if parts_to_fetch:
-                    future_parts.put(_fetch_part_ar, url, *parts_to_fetch.popleft(), buff.name, i)
+                    future_parts.put(_fetch_part_uo, url, *parts_to_fetch.popleft(), buff.name, i)

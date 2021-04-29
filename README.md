@@ -4,14 +4,14 @@ _streaming-urls_ provides transparently chunked, buffered, io streams for cloud 
 IO opperations are concurrent by default. The number of concurrent threads can be adjusted using the `threads`
 parameter, or disabled entirely with `threads=None`.
 ```
-import streaming_urls as su
+import streaming_urls
 
 # Readable stream:
-with su.Reader(url) as fh:
+with streaming_urls.urlopen(url) as fh:
     fh.read(size)
 
 # Process blob in chunks:
-for chunk in su.for_each_chunk(url):
+for chunk in streaming_urls.iter_content(url):
     my_chunk_processor(chunk)
 ```
 

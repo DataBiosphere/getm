@@ -10,8 +10,7 @@ from random import randint
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-import streaming_urls as su
-
+import streaming_urls
 from tests.infra import GS, S3, suppress_warnings
 
 
@@ -47,7 +46,7 @@ class TestBenchmark(unittest.TestCase):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in [None, 4]]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            with su.Reader(self.url, concurrency=concurrency) as raw:
+            with streaming_urls.urlopen(self.url, concurrency=concurrency) as raw:
                 md5.update(raw.read())
                 while True:
                     d = raw.read()
@@ -56,20 +55,20 @@ class TestBenchmark(unittest.TestCase):
                         break
             self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
 
-    def test_for_each_part(self):
+    def test_iter_content(self):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in [None, 2, 4]]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            for chunk in su.for_each_part(self.url, concurrency=concurrency):
+            for chunk in streaming_urls.iter_content(self.url, concurrency=concurrency):
                 md5.update(chunk)
                 chunk.release()
             self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
 
-    def test_for_each_part_async(self):
+    def test_iter_content_unordered(self):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in range(2,5)]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            for i, chunk in su.for_each_part_async(self.url, concurrency=concurrency):
+            for i, chunk in streaming_urls.iter_content_unordered(self.url, concurrency=concurrency):
                 md5.update(chunk)
                 chunk.release()
 
