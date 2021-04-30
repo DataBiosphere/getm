@@ -13,8 +13,7 @@ from random import randint
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from streaming_urls import Reader, for_each_part, for_each_part_async
-
+import streaming_urls
 from tests.infra import GS, S3, suppress_warnings
 
 
@@ -45,7 +44,7 @@ class TestStreamingURLsReader(unittest.TestCase):
             stack.enter_context(mock.patch("streaming_urls.reader.SharedCircularBuffer"))
             stack.enter_context(mock.patch("streaming_urls.reader.ProcessPoolExecutor"))
             stack.enter_context(mock.patch("streaming_urls.reader.ConcurrentQueue"))
-            reader = Reader("some_url")
+            reader = streaming_urls.urlopen("some_url")
             with self.assertRaises(OSError):
                 reader.fileno()
             with self.assertRaises(OSError):
@@ -74,7 +73,7 @@ class TestStreamingURLsReader(unittest.TestCase):
 
     def _test_read(self, url: str, concurrency: int, chunk_size=None):
         chunk_size = chunk_size or len(self.expected_data) // 5
-        with Reader(url, chunk_size, concurrency=concurrency) as reader:
+        with streaming_urls.urlopen(url, chunk_size, concurrency=concurrency) as reader:
             data = bytearray()
             while True:
                 d = reader.read(randint(chunk_size // 3, chunk_size))
@@ -89,7 +88,7 @@ class TestStreamingURLsReader(unittest.TestCase):
         Ensure it is not possible to overlap the circular buffer.
         """
         chunk_size = len(self.expected_data) // 5
-        with Reader(self.gs_url, chunk_size, concurrency=2) as reader:
+        with streaming_urls.urlopen(self.gs_url, chunk_size, concurrency=2) as reader:
             view = reader.read(1)
             expected_first_byte = bytes(view)
             try:
@@ -115,28 +114,28 @@ class TestStreamingURLsReader(unittest.TestCase):
 
     def _test_readinto(self, url: str, concurrency: int, chunk_size: int):
         buff = bytearray(2 * len(self.expected_data))
-        with Reader(self.s3_url, chunk_size=chunk_size, concurrency=concurrency) as fh:
+        with streaming_urls.urlopen(self.s3_url, chunk_size=chunk_size, concurrency=concurrency) as fh:
             bytes_read = fh.readinto(buff)
             self.assertEqual(self.expected_data[:bytes_read], buff[:bytes_read])
 
-    def test_for_each_part(self):
+    def test_iter_content(self):
         chunk_size = len(self.expected_data) // 10
         for concurrency in (None, 2):
             data = bytearray()
-            for chunk in for_each_part(self.gs_url, chunk_size=chunk_size, concurrency=concurrency):
+            for chunk in streaming_urls.iter_content(self.gs_url, chunk_size=chunk_size, concurrency=concurrency):
                 data += chunk
                 chunk.release()
             self.assertEqual(data, self.expected_data)
 
-    def test_for_each_part_async(self):
+    def test_iter_content_unordered(self):
         chunk_size = len(self.expected_data) // 50
         number_of_chunks = ceil(len(self.expected_data) / chunk_size)
 
         for concurrency in (8, 10):
             data = bytearray(len(self.expected_data))
-            for chunk_id, chunk in for_each_part_async(self.gs_url,
-                                                          chunk_size=chunk_size,
-                                                          concurrency=concurrency):
+            for chunk_id, chunk in streaming_urls.iter_content_unordered(self.gs_url,
+                                                                         chunk_size=chunk_size,
+                                                                         concurrency=concurrency):
                 data[chunk_id * chunk_size: chunk_id * chunk_size + len(chunk)] = chunk
                 chunk.release()
             self.assertEqual(self.expected_data, data)
