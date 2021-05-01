@@ -1,12 +1,13 @@
 from typing import Generator, Optional, Tuple
 
 from streaming_urls import config
-from streaming_urls.reader import URLRawReader, URLReader, for_each_part, for_each_part_raw, for_each_part_unordered
+from streaming_urls.reader import (BaseURLReader, URLRawReader, URLReader, for_each_part, for_each_part_raw,
+                                   for_each_part_unordered)
 
 
 def urlopen(url: str,
             chunk_size: int=config.default_chunk_size,
-            concurrency: Optional[int]=config.default_concurrency):
+            concurrency: Optional[int]=config.default_concurrency) -> BaseURLReader:
     if concurrency is None:
         return URLRawReader(url)
     else:
