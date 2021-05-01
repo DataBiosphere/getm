@@ -80,7 +80,7 @@ class URLReader(BaseURLReader):
         self.executor = ProcessPoolExecutor(max_workers=concurrency)
         self.future_parts = ConcurrentQueue(self.executor, concurrency=concurrency)
         for part_coord in part_coords(self.size, self.chunk_size):
-            self.future_parts.put(_fetch_part, self.url, *part_coord, self._buf.name)
+            self.future_parts.put(self._fetch_part, self.url, *part_coord, self._buf.name)
 
     def read(self, sz: int=-1) -> memoryview:
         """
@@ -127,6 +127,14 @@ class URLReader(BaseURLReader):
             for part_id, start, part_size in reader.future_parts:
                 yield reader._buf[start: start + part_size]
 
+    @staticmethod
+    def _fetch_part(url: str, part_id: int, start: int, part_size: int, sb_name: str) -> Tuple[int, int, int]:
+        # This method is executed in subprocesses. Rerferences to global variables should be avoided.
+        # See https://docs.python.org/3/library/multiprocessing.html#programming-guidelines
+        buf = SharedCircularBuffer(sb_name)
+        http_session().get_range_readinto(url, start, part_size, buf[start: start + part_size])
+        return part_id, start, part_size
+
 def _number_of_parts(size: int, chunk_size: int) -> int:
     return ceil(size / chunk_size)
 
@@ -142,13 +150,6 @@ def part_coords(size: int, chunk_size: int):
     for part_id in range(_number_of_parts(size, chunk_size)):
         start, part_size = _part_range(size, chunk_size, part_id)
         yield part_id, start, part_size
-
-def _fetch_part(url: str, part_id: int, start: int, part_size: int, sb_name: str) -> Tuple[int, int, int]:
-    # This method is executed in subprocesses. Rerferences to global variables should be avoided.
-    # See https://docs.python.org/3/library/multiprocessing.html#programming-guidelines
-    buf = SharedCircularBuffer(sb_name)
-    http_session().get_range_readinto(url, start, part_size, buf[start: start + part_size])
-    return part_id, start, part_size
 
 def _fetch_part_uo(url: str,
                    part_id: int,
