@@ -34,6 +34,10 @@ class BaseURLReader(io.IOBase):
     def write(self, *args, **kwargs):
         raise OSError()
 
+    @classmethod
+    def iter_content(cls, url: str, chunk_size: int=config.default_chunk_size):
+        raise NotImplementedError()
+
 class URLRawReader(BaseURLReader):
     def __init__(self, url: str):
         self.size = http.size(url)
@@ -50,6 +54,11 @@ class URLRawReader(BaseURLReader):
     def close(self):
         self.handle.close()
         super().close()
+
+    @classmethod
+    def iter_content(cls, url: str, chunk_size: int=config.default_chunk_size):
+        for part_id, part in enumerate(http.iter_content(url, chunk_size=chunk_size)):
+            yield memoryview(part)
 
 class URLReader(BaseURLReader):
     """
@@ -105,6 +114,19 @@ class URLReader(BaseURLReader):
         self._buf.close()
         super().close()
 
+    @classmethod
+    def iter_content(cls,
+                     url: str,
+                     chunk_size: int=config.default_chunk_size,
+                     concurrency: int=config.default_concurrency) -> Generator[memoryview, None, None]:
+        """
+        Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
+        objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
+        """
+        with cls(url, chunk_size, concurrency) as reader:
+            for part_id, start, part_size in reader.future_parts:
+                yield reader._buf[start: start + part_size]
+
 def _number_of_parts(size: int, chunk_size: int) -> int:
     return ceil(size / chunk_size)
 
@@ -128,27 +150,6 @@ def _fetch_part(url: str, part_id: int, start: int, part_size: int, sb_name: str
     http_session().get_range_readinto(url, start, part_size, buf[start: start + part_size])
     return part_id, start, part_size
 
-def for_each_part_raw(url: str, chunk_size: int=config.default_chunk_size):
-    for part_id, part in enumerate(http.iter_content(url, chunk_size=chunk_size)):
-        yield memoryview(part)
-
-def for_each_part(url: str,
-                  chunk_size: int=config.default_chunk_size,
-                  concurrency: int=config.default_concurrency) -> Generator[memoryview, None, None]:
-    """
-    Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
-    objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
-    """
-    assert 1 <= concurrency
-    size = http.size(url)
-    with SharedCircularBuffer(size=chunk_size * concurrency, create=True) as buff:
-        with ProcessPoolExecutor(max_workers=concurrency) as e:
-            future_parts = ConcurrentQueue(e, concurrency=concurrency)
-            for part_coord in part_coords(size, chunk_size):
-                future_parts.put(_fetch_part, url, *part_coord, buff.name)
-            for part_id, start, part_size in future_parts:
-                yield buff[start: start + part_size]
-
 def _fetch_part_uo(url: str,
                    part_id: int,
                    start: int,
@@ -161,9 +162,9 @@ def _fetch_part_uo(url: str,
     http_session().get_range_readinto(url, start, part_size, buf[sb_index][:part_size])
     return part_id, start, part_size, sb_index
 
-def for_each_part_unordered(url: str,
-                            chunk_size: int=config.default_chunk_size,
-                            concurrency: int=config.default_concurrency) -> Generator[Tuple[int, memoryview], None, None]:  # noqa
+def iter_content_unordered(url: str,
+                           chunk_size: int=config.default_chunk_size,
+                           concurrency: int=config.default_concurrency) -> Generator[Tuple[int, memoryview], None, None]:  # noqa
     """
     Fetch parts and yield in any order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
     objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.

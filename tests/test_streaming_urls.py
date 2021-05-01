@@ -54,8 +54,8 @@ class TestStreamingURLs(unittest.TestCase):
                     obj = streaming_urls.urlopen("http://this-is-fake-i-hope-xyz", concurrency=concurrency)
                     self.assertIsInstance(obj, expected_class)
 
-            tests = [(None, streaming_urls.for_each_part_raw),
-                     (1, streaming_urls.for_each_part)]
+            tests = [(None, streaming_urls.URLRawReader.iter_content),
+                     (1, streaming_urls.URLReader.iter_content)]
             for concurrency, expected_func in tests:
                 with self.subTest(concurrency=concurrency, expected_func=expected_func):
                     obj = streaming_urls.iter_content("http://this-is-fake-i-hope-xyz", concurrency=concurrency)
