@@ -25,7 +25,7 @@ def setUpModule():
 def tearDownModule():
     GS.client._http.close()
 
-class TestStreamingURLsReader(unittest.TestCase):
+class TestStreamingURLs(unittest.TestCase):
     def setUp(self):
         suppress_warnings()
 
