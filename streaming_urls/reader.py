@@ -12,68 +12,15 @@ from streaming_urls.concurrent import ConcurrentQueue, ConcurrentPool, SharedCir
 
 http = http_session()
 
-class URLReader(io.IOBase):
-    """
-    Provide a streaming object to bytes referenced by 'url'. Chunks of data are pre-fetched in the background with
-    concurrency='concurrency'. When concurrency is disabled entirely, this wraps streaming objects provided by the
-    `requests` library.
-    """
-    def __init__(self,
-                 url: str,
-                 chunk_size: int=config.default_chunk_size,
-                 concurrency: Optional[int]=config.default_concurrency):
-        assert chunk_size >= 1
-        self.url = url
-        self.size = http.size(url)
-        self.chunk_size = chunk_size
-        if concurrency is not None:
-            assert 1 <= concurrency
-            self._start = self._stop = 0
-            self._buf = SharedCircularBuffer(size=(2 * concurrency + 1) * chunk_size, create=True)
-            self.max_read = concurrency * chunk_size
-            self.executor = ProcessPoolExecutor(max_workers=concurrency)
-            self.future_parts = ConcurrentQueue(self.executor, concurrency=concurrency)
-            for part_coord in part_coords(self.size, self.chunk_size):
-                self.future_parts.put(_fetch_part, self.url, *part_coord, self._buf.name)
-        else:
-            self._raw_stream = http.raw(url)
-            self.max_read = self.size
-
+class _URLReader(io.IOBase):
     def readable(self):
         return True
 
     def read(self, sz: int=-1) -> memoryview:
-        """
-        Read at most 'sz' bytes from stream as a memoryview object referencing multiprocessing shared memory. The
-        caller is expected to call 'release' on each such object.
-        """
-        if -1 == sz:
-            sz = self.size
-        if hasattr(self, "_raw_stream"):
-            return memoryview(self._raw_stream.read(sz))
-        else:
-            # avoid overwite in circular buffer
-            sz = min(sz, self.max_read)
-            while sz > self._stop - self._start and len(self.future_parts):
-                _, _, part_size = self.future_parts.get()
-                self._stop += part_size
-            sz = min(sz, self._stop - self._start)  # don't overflow end of data
-            if sz:
-                res = self._buf[self._start: self._start + sz]
-                self._start += len(res)
-            else:
-                res = memoryview(bytes())
-            return res
+        raise NotImplementedError()
 
     def readinto(self, buff: bytearray) -> int:
-        if hasattr(self, "_raw_stream"):
-            return self._raw_stream.readinto(buff)
-        else:
-            d = self.read(len(buff))
-            bytes_read = len(d)
-            buff[:bytes_read] = d
-            d.release()
-            return bytes_read
+        raise NotImplementedError()
 
     def seek(self, *args, **kwargs):
         raise OSError()
@@ -87,13 +34,75 @@ class URLReader(io.IOBase):
     def write(self, *args, **kwargs):
         raise OSError()
 
+class URLRawReader(_URLReader):
+    def __init__(self, url: str):
+        self.size = http.size(url)
+        self.handle = http.raw(url)
+
+    def read(self, sz: int=-1) -> memoryview:
+        if -1 == sz:
+            sz = self.size
+        return memoryview(self.handle.read(sz))
+
+    def readinto(self, buff: bytearray) -> int:
+        return self.handle.readinto(buff)
+
     def close(self):
-        if hasattr(self, "_raw_stream"):
-            self._raw_stream.close()
-        if hasattr(self, "executor"):
-            self.executor.shutdown()
-        if hasattr(self, "_buf"):
-            self._buf.close()
+        self.handle.close()
+        super().close()
+
+class URLReader(_URLReader):
+    """
+    Provide a streaming object to bytes referenced by 'url'. Chunks of data are pre-fetched in the background with
+    concurrency='concurrency'.
+    """
+    def __init__(self,
+                 url: str,
+                 chunk_size: int=config.default_chunk_size,
+                 concurrency: int=config.default_concurrency):
+        assert chunk_size >= 1
+        assert 1 <= concurrency
+        self.url = url
+        self.size = http.size(url)
+        self.chunk_size = chunk_size
+        self._start = self._stop = 0
+        self._buf = SharedCircularBuffer(size=(2 * concurrency + 1) * chunk_size, create=True)
+        self.max_read = concurrency * chunk_size
+        self.executor = ProcessPoolExecutor(max_workers=concurrency)
+        self.future_parts = ConcurrentQueue(self.executor, concurrency=concurrency)
+        for part_coord in part_coords(self.size, self.chunk_size):
+            self.future_parts.put(_fetch_part, self.url, *part_coord, self._buf.name)
+
+    def read(self, sz: int=-1) -> memoryview:
+        """
+        Read at most 'sz' bytes from stream as a memoryview object referencing multiprocessing shared memory. The
+        caller is expected to call 'release' on each such object.
+        """
+        if -1 == sz:
+            sz = self.size
+        # avoid overwite in circular buffer
+        sz = min(sz, self.max_read)
+        while sz > self._stop - self._start and len(self.future_parts):
+            _, _, part_size = self.future_parts.get()
+            self._stop += part_size
+        sz = min(sz, self._stop - self._start)  # don't overflow end of data
+        if sz:
+            res = self._buf[self._start: self._start + sz]
+            self._start += len(res)
+        else:
+            res = memoryview(bytes())
+        return res
+
+    def readinto(self, buff: bytearray) -> int:
+        d = self.read(len(buff))
+        bytes_read = len(d)
+        buff[:bytes_read] = d
+        d.release()
+        return bytes_read
+
+    def close(self):
+        self.executor.shutdown()
+        self._buf.close()
         super().close()
 
 def _number_of_parts(size: int, chunk_size: int) -> int:
