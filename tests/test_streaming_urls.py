@@ -121,24 +121,28 @@ class TestStreamingURLsReader(unittest.TestCase):
     def test_iter_content(self):
         chunk_size = len(self.expected_data) // 10
         for concurrency in (None, 2):
-            data = bytearray()
-            for chunk in streaming_urls.iter_content(self.gs_url, chunk_size=chunk_size, concurrency=concurrency):
-                data += chunk
-                chunk.release()
-            self.assertEqual(data, self.expected_data)
+            with self.subTest(concurrency=concurrency):
+                data = bytearray()
+                for chunk in streaming_urls.iter_content(self.gs_url,
+                                                         chunk_size=chunk_size,
+                                                         concurrency=concurrency):
+                    data += chunk
+                    chunk.release()
+                self.assertEqual(data, self.expected_data)
 
     def test_iter_content_unordered(self):
         chunk_size = len(self.expected_data) // 50
         number_of_chunks = ceil(len(self.expected_data) / chunk_size)
 
         for concurrency in (8, 10):
-            data = bytearray(len(self.expected_data))
-            for chunk_id, chunk in streaming_urls.iter_content_unordered(self.gs_url,
-                                                                         chunk_size=chunk_size,
-                                                                         concurrency=concurrency):
-                data[chunk_id * chunk_size: chunk_id * chunk_size + len(chunk)] = chunk
-                chunk.release()
-            self.assertEqual(self.expected_data, data)
+            with self.subTest(concurrency=concurrency):
+                data = bytearray(len(self.expected_data))
+                for chunk_id, chunk in streaming_urls.iter_content_unordered(self.gs_url,
+                                                                             chunk_size=chunk_size,
+                                                                             concurrency=concurrency):
+                    data[chunk_id * chunk_size: chunk_id * chunk_size + len(chunk)] = chunk
+                    chunk.release()
+                self.assertEqual(self.expected_data, data)
 
 if __name__ == '__main__':
     unittest.main()
