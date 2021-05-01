@@ -12,7 +12,7 @@ from streaming_urls.concurrent import ConcurrentQueue, ConcurrentPool, SharedCir
 
 http = http_session()
 
-class _URLReader(io.IOBase):
+class BaseURLReader(io.IOBase):
     def readable(self):
         return True
 
@@ -34,7 +34,7 @@ class _URLReader(io.IOBase):
     def write(self, *args, **kwargs):
         raise OSError()
 
-class URLRawReader(_URLReader):
+class URLRawReader(BaseURLReader):
     def __init__(self, url: str):
         self.size = http.size(url)
         self.handle = http.raw(url)
@@ -51,7 +51,7 @@ class URLRawReader(_URLReader):
         self.handle.close()
         super().close()
 
-class URLReader(_URLReader):
+class URLReader(BaseURLReader):
     """
     Provide a streaming object to bytes referenced by 'url'. Chunks of data are pre-fetched in the background with
     concurrency='concurrency'.
