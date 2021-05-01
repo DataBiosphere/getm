@@ -44,26 +44,26 @@ class TestStreamingURLsReader(unittest.TestCase):
             stack.enter_context(mock.patch("streaming_urls.reader.SharedCircularBuffer"))
             stack.enter_context(mock.patch("streaming_urls.reader.ProcessPoolExecutor"))
             stack.enter_context(mock.patch("streaming_urls.reader.ConcurrentQueue"))
-            reader = streaming_urls.urlopen("some_url")
-            with self.assertRaises(OSError):
-                reader.fileno()
-            with self.assertRaises(OSError):
-                reader.write(b"x")
-            with self.assertRaises(OSError):
-                reader.writelines(b"x")
-            with self.assertRaises(OSError):
-                reader.seek(123)
-            with self.assertRaises(NotImplementedError):
-                reader.tell()
-            with self.assertRaises(NotImplementedError):
-                reader.truncate()
-            self.assertTrue(reader.readable())
-            self.assertFalse(reader.isatty())
-            self.assertFalse(reader.seekable())
-            self.assertFalse(reader.writable())
-            self.assertFalse(reader.closed)
-            reader.close()
-            self.assertTrue(reader.closed)
+            for concurrency in [None, 4]:
+                with streaming_urls.urlopen("some_url") as reader:
+                    with self.assertRaises(OSError):
+                        reader.fileno()
+                    with self.assertRaises(OSError):
+                        reader.write(b"x")
+                    with self.assertRaises(OSError):
+                        reader.writelines(b"x")
+                    with self.assertRaises(OSError):
+                        reader.seek(123)
+                    with self.assertRaises(NotImplementedError):
+                        reader.tell()
+                    with self.assertRaises(NotImplementedError):
+                        reader.truncate()
+                    self.assertTrue(reader.readable())
+                    self.assertFalse(reader.isatty())
+                    self.assertFalse(reader.seekable())
+                    self.assertFalse(reader.writable())
+                    self.assertFalse(reader.closed)
+                self.assertTrue(reader.closed)
 
     def test_read(self):
         for platform, url in [("aws", self.s3_url), ("gcp", self.gs_url)]:
