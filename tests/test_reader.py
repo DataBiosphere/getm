@@ -50,11 +50,12 @@ class _CommonReaderTests:
     def test_interface(self):
         with contextlib.ExitStack() as stack:
             stack.enter_context(mock.patch("streaming_urls.reader.http"))
-            stack.enter_context(mock.patch("streaming_urls.reader.SharedCircularBuffer"))
+            stack.enter_context(mock.patch("streaming_urls.http.Session"))
+            stack.enter_context(mock.patch("streaming_urls.reader.SharedCircularBuffer", size=3))
             stack.enter_context(mock.patch("streaming_urls.reader.ProcessPoolExecutor"))
             stack.enter_context(mock.patch("streaming_urls.reader.ConcurrentQueue"))
             for concurrency in [None, 4]:
-                with self.get_reader("some_url") as reader:
+                with self.get_reader("some_url", 1, 2) as reader:
                     with self.assertRaises(OSError):
                         reader.fileno()
                     with self.assertRaises(OSError):
@@ -160,6 +161,15 @@ class TestURLReader(_CommonReaderTests, unittest.TestCase):
                 self.assertEqual(expected_first_byte, first_byte)
             finally:
                 view.release()
+
+class TestReaderKeepAlive(_CommonReaderTests, unittest.TestCase):
+    @classmethod
+    def get_reader(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
+        return streaming_urls.reader.URLReaderKeepAlive(url, chunk_size)
+
+    @classmethod
+    def get_iter_content(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
+        return streaming_urls.reader.URLReaderKeepAlive.iter_content(url, chunk_size)
 
 class TestIterContentUnordered(unittest.TestCase):
     def setUp(self):

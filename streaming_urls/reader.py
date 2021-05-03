@@ -1,7 +1,7 @@
 import io
 from math import ceil
-from functools import lru_cache
 from collections import deque
+from multiprocessing import Process, Pipe
 from concurrent.futures import ProcessPoolExecutor
 from typing import Optional, Generator, Tuple
 
@@ -123,6 +123,89 @@ class URLReader(BaseURLReader):
         buf = SharedCircularBuffer(sb_name)
         http_session().get_range_readinto(url, start, part_size, buf[start: start + part_size])
         return part_id, start, part_size
+
+class URLReaderKeepAlive(BaseURLReader, Process):
+    def __init__(self, url: str, chunk_size: int):
+        self.url = url
+        self.chunk_size = chunk_size
+        self.pipe, self.pipesp = Pipe()
+        self.size = http.size(url)
+        self._start = self._stop = 0
+        self.max_read = 10 * self.chunk_size
+        self._buf = SharedCircularBuffer(size=chunk_size + self.max_read, create=True)
+        super().__init__()
+
+    def run(self):
+        handle = http_session().raw(self.url)
+        start = stop = 0
+        with SharedCircularBuffer(self._buf.name) as buf:
+            while True:
+                while stop - start + self.chunk_size >= buf.size:
+                    # If there's no more room in the buffer, wait for the reader
+                    try:
+                        start = self.pipesp.recv()
+                    except EOFError:
+                        break
+                bytes_read = handle.readinto(buf[stop: stop + self.chunk_size])
+                if not bytes_read:
+                    break
+                stop += bytes_read
+                self.pipesp.send(stop)
+
+    def read(self, sz: int=-1):
+        if -1 == sz:
+            sz = self.max_read
+        self.pipe.send(self._start)
+        sz = min(sz, self.max_read)
+        while sz > self._stop - self._start and self._stop < self.size:
+            self._stop = self.pipe.recv()
+        sz = min(sz, self._stop - self._start)
+        if sz:
+            res = self._buf[self._start: self._start + sz]
+            self._start += len(res)
+            return res
+        else:
+            return memoryview(bytes())
+
+    def readinto(self, buff: bytearray) -> int:
+        d = self.read(len(buff))
+        bytes_read = len(d)
+        buff[:bytes_read] = d
+        d.release()
+        return bytes_read
+
+    def close(self):
+        self.pipe.close()
+        self.pipesp.close()
+        self._buf.close()
+        self.join()
+        super().close()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    @classmethod
+    def iter_content(cls, url: str, chunk_size: int) -> Generator[memoryview, None, None]:
+        """
+        Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
+        objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
+        """
+        with cls(url, chunk_size) as reader:
+            start = stop = 0
+            while True:
+                while stop - start < reader.chunk_size and stop < reader.size:
+                    stop = reader.pipe.recv()
+                read_length = min(reader.chunk_size, stop - start)
+                if not read_length:
+                    break
+                res = reader._buf[start: start + read_length]
+                start += read_length
+                yield res
+                reader.pipe.send(start)
 
 def _number_of_parts(size: int, chunk_size: int) -> int:
     return ceil(size / chunk_size)
