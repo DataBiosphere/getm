@@ -28,6 +28,7 @@ class TestStreamingURLs(unittest.TestCase):
             stack.enter_context(mock.patch("streaming_urls.http.Session.raw"))
 
             tests = [(None, streaming_urls.URLRawReader),
+                     (1, streaming_urls.URLReaderKeepAlive),
                      (4, streaming_urls.URLReader)]
             for concurrency, expected_class in tests:
                 with self.subTest(concurrency=concurrency, expected_class=expected_class):
@@ -35,7 +36,9 @@ class TestStreamingURLs(unittest.TestCase):
                     self.assertIsInstance(obj, expected_class)
 
             tests = [(None, streaming_urls.URLRawReader.iter_content),
-                     (1, streaming_urls.URLReader.iter_content)]
+                     (1, streaming_urls.URLReaderKeepAlive.iter_content),
+                     (3, streaming_urls.URLReader.iter_content)]
+
             for concurrency, expected_func in tests:
                 with self.subTest(concurrency=concurrency, expected_func=expected_func):
                     obj = streaming_urls.iter_content("http://this-is-fake-i-hope-xyz", concurrency=concurrency)
