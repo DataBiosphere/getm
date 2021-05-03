@@ -144,6 +144,8 @@ class URLReaderKeepAlive(BaseURLReader, Process):
                     # If there's no more room in the buffer, wait for the reader
                     try:
                         start = self.pipesp.recv()
+                        if "STOP" == start:
+                            return
                     except EOFError:
                         break
                 bytes_read = handle.readinto(buf[stop: stop + self.chunk_size])
@@ -175,10 +177,11 @@ class URLReaderKeepAlive(BaseURLReader, Process):
         return bytes_read
 
     def close(self):
+        self.pipe.send("STOP")
         self.pipe.close()
         self.pipesp.close()
+        self.join(timeout=5)
         self._buf.close()
-        self.join()
         super().close()
 
     def __enter__(self):
