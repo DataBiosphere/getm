@@ -129,11 +129,15 @@ class TestRawReader(_CommonReaderTests, unittest.TestCase):
 class TestURLReader(_CommonReaderTests, unittest.TestCase):
     @classmethod
     def get_reader(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
-        return streaming_urls.reader.URLReader(url)
+        chunk_size = chunk_size or streaming_urls.default_chunk_size
+        concurrency = concurrency or streaming_urls.default_concurrency
+        return streaming_urls.reader.URLReader(url, chunk_size, concurrency)
 
     @classmethod
     def get_iter_content(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
-        return streaming_urls.reader.URLReader.iter_content(url, chunk_size)
+        chunk_size = chunk_size or streaming_urls.default_chunk_size
+        concurrency = concurrency or streaming_urls.default_concurrency
+        return streaming_urls.reader.URLReader.iter_content(url, chunk_size, concurrency)
 
     def test_read_no_overlap(self):
         """
