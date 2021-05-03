@@ -6,46 +6,27 @@ Given a GS signed URL and filepath, download data to filepath, verify md5 checks
 import os
 import sys
 import time
-import base64
-import hashlib
 
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from streaming_urls import iter_content
-from streaming_urls.http import http_session
-from streaming_urls.config import default_chunk_size
+from streaming_urls import reader, default_chunk_size, download_iter_parts
 
-
-http = http_session()
-
-def get_md5_from_gs_signed_url(url: str):
-    headers = http.head(url)
-    gs_hashes = headers['x-goog-hash']
-    md5 = gs_hashes.split(",")[1].split("=", 1)[1]
-    return md5
 
 url = sys.argv[1]
-expected_md5 = get_md5_from_gs_signed_url(url)
 filepath = os.path.realpath(sys.argv[2])
-sz = http.size(url)
-try:
-    print("[", end="", flush=True)
-    start = time.time()
-    fd = os.open(filepath, os.O_WRONLY | os.O_CREAT)
-    os.pwrite(fd, b"0", sz - 1)
-    md5 = hashlib.md5()
-    for chunk_id, chunk in enumerate(iter_content(url, concurrency=4)):
-        md5.update(chunk)
-        os.pwrite(fd, chunk, chunk_id * default_chunk_size)
-        chunk.release()
+sz = reader.http.size(url)
+
+start = time.time()
+print("[", end="", flush=True)
+part_count = 0
+total = 0
+for part_size in download_iter_parts(url, filepath):
+    total += part_size
+    new_part_count = total // default_chunk_size
+    if new_part_count > part_count:
         print("=", end="", flush=True)
-except Exception:
-    os.remove(filepath)
-    sys.exit(1)
-finally:
-    os.close(fd)
+        part_count = new_part_count
 print("]")
 print()
-assert expected_md5 == base64.b64encode(md5.digest()).decode("utf-8"), "md5 checksum failed!"
 print(f"download {sz} bytes in {time.time() - start} seconds")
