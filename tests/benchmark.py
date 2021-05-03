@@ -55,11 +55,34 @@ class TestBenchmark(unittest.TestCase):
                         break
             self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
 
+    def test_read_keep_alive(self):
+        tests = [("1", 1024 * 1024 * 1),
+                 ("5", 1024 * 1024 * 5),
+                 ("7", 1024 * 1024 * 7)]
+        for test_name, chunk_size in self.duration_subtests(tests):
+            md5 = hashlib.md5()
+            with streaming_urls.urlopen(self.url, chunk_size, concurrency=1) as raw:
+                while True:
+                    d = raw.read(chunk_size)
+                    if not d:
+                        break
+                    md5.update(d)
+            self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
+
     def test_iter_content(self):
-        tests = [(f"concurrency={concurrency}", concurrency) for concurrency in [None, 2, 4]]
+        tests = [(f"concurrency={concurrency}", concurrency) for concurrency in [None, 4]]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
             for chunk in streaming_urls.iter_content(self.url, concurrency=concurrency):
+                md5.update(chunk)
+                chunk.release()
+            self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
+
+    def test_iter_content_keep_alive(self):
+        tests = [(f"concurrency={concurrency}", concurrency) for concurrency in [1]]
+        for test_name, concurrency in self.duration_subtests(tests):
+            md5 = hashlib.md5()
+            for chunk in streaming_urls.iter_content(self.url, 1024 * 1024 * 5, concurrency=concurrency):
                 md5.update(chunk)
                 chunk.release()
             self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
@@ -68,7 +91,7 @@ class TestBenchmark(unittest.TestCase):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in range(2,5)]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            for i, chunk in streaming_urls.iter_content_unordered(self.url, concurrency=concurrency):
+            for i, chunk in streaming_urls.iter_content_unordered(self.url, streaming_urls.default_chunk_size, concurrency):
                 md5.update(chunk)
                 chunk.release()
 
