@@ -1,6 +1,7 @@
 include common.mk
 
 MODULES=streaming_urls
+SCRIPTS=scripts
 tests:=$(wildcard tests/test_*.py)
 
 test: lint mypy $(tests)
@@ -12,7 +13,7 @@ $(tests): %.py :
 	coverage run -p --source=streaming_urls $*.py --verbose
 
 lint:
-	flake8 $(MODULES) *.py
+	flake8 $(MODULES) $(SCRIPTS) *.py
 
 mypy:
 	mypy --ignore-missing-imports $(MODULES)
