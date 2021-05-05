@@ -91,7 +91,7 @@ class TestBenchmark(unittest.TestCase):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in range(2,5)]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            for i, chunk in streaming_urls.iter_content_unordered(self.url, streaming_urls.default_chunk_size, concurrency):
+            for i, chunk in streaming_urls.reader.iter_content_unordered(self.url, streaming_urls.default_chunk_size, concurrency):
                 md5.update(chunk)
                 chunk.release()
 
