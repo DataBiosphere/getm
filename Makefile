@@ -35,7 +35,7 @@ build: clean version
 shared_memory_37:
 	python setup.py build_ext --inplace
 
-sdist: clean version bgzip_utils.c
+sdist: clean version
 	python setup.py sdist
 
 install: build
