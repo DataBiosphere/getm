@@ -1,8 +1,21 @@
 import os
+import sys
 import glob
 import subprocess
 import warnings
 from setuptools import setup, find_packages
+# from distutils.extension import Extension
+from distutils.core import Extension
+
+extensions = list()
+if (3, 7) == sys.version_info[:2]:
+    # Try to build the shared memory extension for python 3.7.*
+    shared_mem_37_ext = Extension(
+        "streaming_urls.concurrent.shared_memory_37._posixshmem",
+        sources=["streaming_urls/concurrent/shared_memory_37/posixshmem.c"],
+        libraries=["rt"],
+    )
+    extensions.append(shared_mem_37_ext)
 
 install_requires = [line.rstrip() for line in open(os.path.join(os.path.dirname(__file__), "requirements.txt"))]
 
@@ -34,6 +47,7 @@ def get_version():
 
 setup(
     name='streaming-urls',
+    python_requires='>=3.7.7',
     version=get_version(),
     description='Streaming read/writes to Google Storage blobs with ascynchronous buffering.',
     long_description=long_description,
@@ -52,5 +66,6 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.7'
-    ]
+    ],
+    ext_modules=extensions,
 )
