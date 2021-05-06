@@ -5,8 +5,8 @@ from multiprocessing import Process, Pipe
 from concurrent.futures import ProcessPoolExecutor
 from typing import Optional, Generator, Tuple
 
-from streaming_urls.http import http_session
-from streaming_urls.concurrent import ConcurrentQueue, ConcurrentPool, SharedCircularBuffer, SharedBufferArray
+from getm.http import http_session
+from getm.concurrent import ConcurrentQueue, ConcurrentPool, SharedCircularBuffer, SharedBufferArray
 
 
 http = http_session()

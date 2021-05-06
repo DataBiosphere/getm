@@ -1,6 +1,6 @@
 include common.mk
 
-MODULES=streaming_urls
+MODULES=getm
 SCRIPTS=scripts
 tests:=$(wildcard tests/test_*.py)
 
@@ -10,7 +10,7 @@ test: lint mypy shared_memory_37 $(tests)
 
 # A pattern rule that runs a single test script
 $(tests): %.py :
-	coverage run -p --source=streaming_urls $*.py --verbose
+	coverage run -p --source=getm $*.py --verbose
 
 lint:
 	flake8 $(MODULES) $(SCRIPTS) *.py
@@ -21,9 +21,9 @@ mypy:
 benchmark:
 	python tests/benchmark.py
 
-version: streaming_urls/version.py
+version: getm/version.py
 
-streaming_urls/version.py: setup.py
+getm/version.py: setup.py
 	echo "__version__ = '$$(python setup.py --version)'" > $@
 
 clean:
@@ -41,4 +41,4 @@ sdist: clean version bgzip_utils.c
 install: build
 	pip install --upgrade dist/*.whl
 
-.PHONY: $(tests) benchmark streaming_urls/version.py clean build shared_memory_37 install
+.PHONY: $(tests) benchmark getm/version.py clean build shared_memory_37 install
