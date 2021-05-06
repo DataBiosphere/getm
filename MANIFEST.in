@@ -1,1 +1,2 @@
 include requirements.txt
+include getm/concurrent/shared_memory_37/clinic/posixshmem.c.h
