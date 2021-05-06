@@ -4,7 +4,7 @@ MODULES=streaming_urls
 SCRIPTS=scripts
 tests:=$(wildcard tests/test_*.py)
 
-test: lint mypy $(tests)
+test: lint mypy shared_memory_37 $(tests)
 	coverage combine
 	rm -f .coverage.*
 
@@ -32,7 +32,13 @@ clean:
 build: clean version
 	python setup.py bdist_wheel
 
+shared_memory_37:
+	python setup.py build_ext --inplace
+
+sdist: clean version bgzip_utils.c
+	python setup.py sdist
+
 install: build
 	pip install --upgrade dist/*.whl
 
-.PHONY: $(tests) benchmark streaming_urls/version.py clean build install
+.PHONY: $(tests) benchmark streaming_urls/version.py clean build shared_memory_37 install
