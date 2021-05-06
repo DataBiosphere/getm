@@ -1,15 +1,24 @@
 import struct
-from multiprocessing import shared_memory
+try:
+    from multiprocessing.shared_memory import SharedMemory  # type: ignore
+except ImportError:
+    from streaming_urls.concurrent.shared_memory_37.shared_memory import SharedMemory  # type: ignore
 from typing import ByteString, Optional, Tuple
+
+# TODO
+# Assignment to memoryview slices annoys mypy
+# Remove ignore statements when mypy graduates from 0.812
+# See: https://github.com/python/typeshed/pull/4943
+#      https://github.com/python/typeshed/issues/4991
 
 
 class SharedCircularBuffer:
     def __init__(self, name: Optional[str]=None, size: int=0, create=False):
         if create is True:
-            self._shared_memory = shared_memory.SharedMemory(create=True, size=size)
+            self._shared_memory = SharedMemory(create=True, size=size)
             self._did_create = True
         else:
-            self._shared_memory = shared_memory.SharedMemory(name)
+            self._shared_memory = SharedMemory(name)
         self._view = self._shared_memory.buf
 
     @property
@@ -41,10 +50,10 @@ class SharedCircularBuffer:
         start, stop, wraps = self._circular_coords(slc)
         if wraps:
             wrap_length = self.size - start
-            self._view[start:] = data[:wrap_length]  # type: ignore
-            self._view[:len(data) - wrap_length] = data[wrap_length:]  # type: ignore
+            self._view[start:] = data[:wrap_length]  # type: ignore # TODO remove after mypy 0.812
+            self._view[:len(data) - wrap_length] = data[wrap_length:]  # type: ignore # TODO remove after mypy 0.812
         else:
-            self._view[start:stop] = data  # type: ignore
+            self._view[start:stop] = data  # type: ignore # TODO remove after mypy 0.812
 
     def close(self):
         if self._shared_memory is not None:
@@ -65,15 +74,16 @@ STRIDE_SZ = struct.calcsize(STRIDE_FMT)
 class SharedBufferArray:
     def __init__(self, name: Optional[str]=None, chunk_size: int=0, num_chunks: int=0, create=False):
         if create is True:
-            self._shared_memory = shared_memory.SharedMemory(create=True, size=(chunk_size * num_chunks) + STRIDE_SZ)
+            self._shared_memory = SharedMemory(create=True,
+                                               size=(chunk_size * num_chunks) + STRIDE_SZ)
             self._set_stride_info(chunk_size, num_chunks)
             self._did_create = True
         else:
-            self._shared_memory = shared_memory.SharedMemory(name)
+            self._shared_memory = SharedMemory(name)
             self._get_stride_info()
 
     def _set_stride_info(self, chunk_size: int, num_chunks: int):
-        self._shared_memory.buf[-STRIDE_SZ:] = struct.pack(STRIDE_FMT, chunk_size, num_chunks)  # type: ignore
+        self._shared_memory.buf[-STRIDE_SZ:] = struct.pack(STRIDE_FMT, chunk_size, num_chunks)  # type: ignore # TODO remove after mypy 0.812  # noqa
         self.chunk_size, self.num_chunks = chunk_size, num_chunks
 
     def _get_stride_info(self):
