@@ -1,7 +1,7 @@
 import os
 from typing import Generator, Optional
 
-from streaming_urls import reader, checksum
+from getm import reader, checksum
 
 
 default_chunk_size = 128 * 1024 * 1024

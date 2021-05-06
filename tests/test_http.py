@@ -12,7 +12,7 @@ pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noq
 sys.path.insert(0, pkg_root)  # noqa
 
 from tests.infra.server import ThreadedLocalServer, BaseHTTPRequestHandler
-from streaming_urls.http import HTTPAdapter, Retry, http_session
+from getm.http import HTTPAdapter, Retry, http_session
 
 from tests.infra import GS, S3, suppress_warnings
 

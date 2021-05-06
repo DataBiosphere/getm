@@ -2,7 +2,7 @@ import struct
 try:
     from multiprocessing.shared_memory import SharedMemory  # type: ignore
 except ImportError:
-    from streaming_urls.concurrent.shared_memory_37.shared_memory import SharedMemory  # type: ignore
+    from getm.concurrent.shared_memory_37.shared_memory import SharedMemory  # type: ignore
 from typing import ByteString, Optional, Tuple
 
 # TODO

@@ -26,11 +26,11 @@ class GS:
     def setup(cls):
         if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
             cls.client = Client.from_service_account_json(os.environ['GOOGLE_APPLICATION_CREDENTIALS'])
-        elif os.environ.get("STREAMING_URL_TEST_CREDENTIALS"):
+        elif os.environ.get("GETM_TEST_CREDENTIALS"):
             import json
             import base64
             from google.oauth2.service_account import Credentials
-            creds_info = json.loads(base64.b64decode(os.environ.get("STREAMING_URL_TEST_CREDENTIALS")))
+            creds_info = json.loads(base64.b64decode(os.environ.get("GETM_TEST_CREDENTIALS")))
             creds = Credentials.from_service_account_info(creds_info)
             cls.client = Client(credentials=creds)
         else:
@@ -39,7 +39,7 @@ class GS:
 
     @classmethod
     def put_fixture(cls, sz=1024 * 1024 * 1024) -> Tuple[str, int]:
-        key = "streaming-urls-large-file"
+        key = "getm-large-file"
         blob = cls.bucket.get_blob(key)
         if not blob:
             data = os.urandom(sz)

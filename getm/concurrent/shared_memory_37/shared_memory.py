@@ -17,7 +17,7 @@ if os.name == "nt":
     _USE_POSIX = False
 else:
     # import _posixshmem
-    import streaming_urls.concurrent.shared_memory_37._posixshmem as _posixshmem
+    import getm.concurrent.shared_memory_37._posixshmem as _posixshmem
     _USE_POSIX = True
 
 

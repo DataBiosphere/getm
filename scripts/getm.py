@@ -2,7 +2,7 @@
 """
 Given a GS signed URL and filepath, download data to filepath, verify md5 checksum.
 """
-# gs://gs-chunked-io-test/streaming-urls-large-file
+# gs://gs-chunked-io-test/getm-large-file
 import os
 import sys
 import time
@@ -10,7 +10,7 @@ import time
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from streaming_urls import reader, default_chunk_size, download_iter_parts
+from getm import reader, default_chunk_size, download_iter_parts
 
 
 url = sys.argv[1]

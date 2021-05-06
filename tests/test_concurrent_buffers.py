@@ -8,7 +8,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from streaming_urls.concurrent import SharedBufferArray
+from getm.concurrent import SharedBufferArray
 
 
 def _write(sb_name, chunk_id, chunk_content):

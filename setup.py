@@ -11,8 +11,8 @@ extensions = list()
 if (3, 7) == sys.version_info[:2]:
     # Try to build the shared memory extension for python 3.7.*
     shared_mem_37_ext = Extension(
-        "streaming_urls.concurrent.shared_memory_37._posixshmem",
-        sources=["streaming_urls/concurrent/shared_memory_37/posixshmem.c"],
+        "getm.concurrent.shared_memory_37._posixshmem",
+        sources=["getm/concurrent/shared_memory_37/posixshmem.c"],
         libraries=["rt"],
     )
     extensions.append(shared_mem_37_ext)
@@ -23,9 +23,9 @@ with open("README.md") as fh:
     long_description = fh.read()
 
 def get_version():
-    filepath = os.path.join(os.path.dirname(__file__), "streaming_urls", "version.py")
+    filepath = os.path.join(os.path.dirname(__file__), "getm", "version.py")
     if os.path.isfile(filepath):
-        # In source distributions or builds, version is available in the generated streaming_urls/version.py file
+        # In source distributions or builds, version is available in the generated getm/version.py file
         with open(filepath) as fh:
             version = dict()
             exec(fh.read().strip(), version)
@@ -46,13 +46,13 @@ def get_version():
             return out[1:]
 
 setup(
-    name='streaming-urls',
+    name='getm',
     python_requires='>=3.7.7',
     version=get_version(),
-    description='Streaming read/writes to Google Storage blobs with ascynchronous buffering.',
+    description='Download data from URLs quickly, with integrity',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/xbrianh/streaming-urls.git',
+    url='https://github.com/xbrianh/getm.git',
     author='Brian Hannafious',
     author_email='bhannafi@ucsc.edu',
     license='MIT',

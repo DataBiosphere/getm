@@ -14,7 +14,7 @@ from typing import Optional
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-import streaming_urls
+import getm
 from tests.infra import GS, S3, suppress_warnings
 
 
@@ -49,11 +49,11 @@ class _CommonReaderTests:
 
     def test_interface(self):
         with contextlib.ExitStack() as stack:
-            stack.enter_context(mock.patch("streaming_urls.reader.http"))
-            stack.enter_context(mock.patch("streaming_urls.http.Session"))
-            stack.enter_context(mock.patch("streaming_urls.reader.SharedCircularBuffer", size=3))
-            stack.enter_context(mock.patch("streaming_urls.reader.ProcessPoolExecutor"))
-            stack.enter_context(mock.patch("streaming_urls.reader.ConcurrentQueue"))
+            stack.enter_context(mock.patch("getm.reader.http"))
+            stack.enter_context(mock.patch("getm.http.Session"))
+            stack.enter_context(mock.patch("getm.reader.SharedCircularBuffer", size=3))
+            stack.enter_context(mock.patch("getm.reader.ProcessPoolExecutor"))
+            stack.enter_context(mock.patch("getm.reader.ConcurrentQueue"))
             for concurrency in [None, 4]:
                 with self.get_reader("some_url", 1, 2) as reader:
                     with self.assertRaises(OSError):
@@ -121,31 +121,31 @@ class _CommonReaderTests:
 class TestRawReader(_CommonReaderTests, unittest.TestCase):
     @classmethod
     def get_reader(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
-        return streaming_urls.reader.URLRawReader(url)
+        return getm.reader.URLRawReader(url)
 
     @classmethod
     def get_iter_content(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
-        return streaming_urls.reader.URLRawReader.iter_content(url, chunk_size)
+        return getm.reader.URLRawReader.iter_content(url, chunk_size)
 
 class TestURLReader(_CommonReaderTests, unittest.TestCase):
     @classmethod
     def get_reader(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
-        chunk_size = chunk_size or streaming_urls.default_chunk_size
-        concurrency = concurrency or streaming_urls.default_concurrency
-        return streaming_urls.reader.URLReader(url, chunk_size, concurrency)
+        chunk_size = chunk_size or getm.default_chunk_size
+        concurrency = concurrency or getm.default_concurrency
+        return getm.reader.URLReader(url, chunk_size, concurrency)
 
     @classmethod
     def get_iter_content(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
-        chunk_size = chunk_size or streaming_urls.default_chunk_size
-        concurrency = concurrency or streaming_urls.default_concurrency
-        return streaming_urls.reader.URLReader.iter_content(url, chunk_size, concurrency)
+        chunk_size = chunk_size or getm.default_chunk_size
+        concurrency = concurrency or getm.default_concurrency
+        return getm.reader.URLReader.iter_content(url, chunk_size, concurrency)
 
     def test_read_no_overlap(self):
         """
         Ensure it is not possible to overlap the circular buffer.
         """
         chunk_size = len(self.expected_data) // 5
-        with streaming_urls.urlopen(self.gs_url, chunk_size, concurrency=2) as reader:
+        with getm.urlopen(self.gs_url, chunk_size, concurrency=2) as reader:
             view = reader.read(1)
             expected_first_byte = bytes(view)
             try:
@@ -165,11 +165,11 @@ class TestURLReader(_CommonReaderTests, unittest.TestCase):
 class TestReaderKeepAlive(_CommonReaderTests, unittest.TestCase):
     @classmethod
     def get_reader(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
-        return streaming_urls.reader.URLReaderKeepAlive(url, chunk_size)
+        return getm.reader.URLReaderKeepAlive(url, chunk_size)
 
     @classmethod
     def get_iter_content(cls, url: str, chunk_size: Optional[int]=None, concurrency: Optional[int]=None):
-        return streaming_urls.reader.URLReaderKeepAlive.iter_content(url, chunk_size)
+        return getm.reader.URLReaderKeepAlive.iter_content(url, chunk_size)
 
 class TestIterContentUnordered(unittest.TestCase):
     def setUp(self):
@@ -192,9 +192,9 @@ class TestIterContentUnordered(unittest.TestCase):
         for concurrency in (8, 10):
             with self.subTest(concurrency=concurrency):
                 data = bytearray(len(self.expected_data))
-                for chunk_id, chunk in streaming_urls.reader.iter_content_unordered(self.gs_url,
-                                                                                    chunk_size=chunk_size,
-                                                                                    concurrency=concurrency):
+                for chunk_id, chunk in getm.reader.iter_content_unordered(self.gs_url,
+                                                                          chunk_size=chunk_size,
+                                                                          concurrency=concurrency):
                     data[chunk_id * chunk_size: chunk_id * chunk_size + len(chunk)] = chunk
                     chunk.release()
                 self.assertEqual(self.expected_data, data)
