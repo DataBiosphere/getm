@@ -1,0 +1,17 @@
+language: python
+python:
+  - 3.7
+install:
+  - echo -n $GCP_CREDS | base64 -d > gcp-creds.json
+  - export GETM_GOOGLE_APPLICATION_CREDENTIALS=gcp-creds.json
+  - pip install -r requirements-dev.txt
+script:
+  - set -eo pipefail
+  - make test
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+env:
+  global:
+    - AWS_DEFAULT_REGION="us-west-2"
+    - GETM_GS_TEST_BUCKET="getm-test-bucket"
+    - GETM_S3_TEST_BUCKET="getm-test-bucket"
