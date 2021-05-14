@@ -40,6 +40,10 @@ getm https://my-cool-url my-local-file
 During tests, signed URLs are generated that point to data in S3 and GS buckets. Data is repopulated during each test.
 You must have credentials available to read and write to the test buckets, and to generate signed URLs.
 
+Set the following environment variables to the GS and S3 test bucket names, respectively:
+- `GETM_GS_TEST_BUCKET`
+- `GETM_S3_TEST_BUCKET`
+
 ### GCP Credentials
 
 Generating signed URLs during tests requires service account credentials, which are made available to the test suite by

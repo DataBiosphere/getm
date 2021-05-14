@@ -9,6 +9,12 @@ from google.cloud.storage import Client
 from google.cloud.storage.bucket import Bucket
 
 
+def get_env(name: str) -> str:
+    val = os.environ.get(name)
+    if val is None:
+        raise RuntimeError(f"Please set the '{name}' environment variable to run tests.")
+    return val
+
 class GS:
     client = None
     bucket = None
@@ -30,7 +36,7 @@ class GS:
             cls.client = Client.from_service_account_json(os.environ['GOOGLE_APPLICATION_CREDENTIALS'])
         else:
             cls.client = Client()
-        cls.bucket = cls.client.bucket("gs-chunked-io-test")
+        cls.bucket = cls.client.bucket(get_env('GETM_GS_TEST_BUCKET'))
 
     @classmethod
     def put_fixture(cls, sz=1024 * 1024 * 1024) -> Tuple[str, int]:
@@ -54,7 +60,7 @@ class S3:
 
     @classmethod
     def setup(cls):
-        cls.bucket = boto3.resource("s3").Bucket("org-hpp-ssds-staging-test")
+        cls.bucket = boto3.resource("s3").Bucket(get_env('GETM_S3_TEST_BUCKET'))
 
 def suppress_warnings():
     # Suppress the annoying google gcloud _CLOUD_SDK_CREDENTIALS_WARNING warnings
