@@ -39,6 +39,9 @@ class HeadHandler(SilentHandler):
                 self.send_header(k, v)
         self.end_headers()
 
+    def do_GET(self, *args, **kwargs):
+        self.do_HEAD(*args, **kwargs)
+
 class TestHTTP(unittest.TestCase):
     def setUp(self):
         suppress_warnings()

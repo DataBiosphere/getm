@@ -32,13 +32,12 @@ class Session(requests.Session):
 
     @lru_cache(maxsize=20)
     def head(self, url: str):
-        resp = super().head(url)
-        if codes.forbidden == resp.status_code:
-            # S3 signed urls return 403 for HEAD, possibly depending on signer.
-            resp = self.get(url, stream=True)
-            resp.raise_for_status()
-        else:
-            resp.raise_for_status()
+        """
+        Return the headers from a GET request.
+        """
+        # HEAD on S3 signed urls does no include "Content-Length", so we use GET instead
+        resp = self.get(url, stream=True)
+        resp.raise_for_status()
         return resp.headers
 
     def size(self, url: str) -> int:
