@@ -2,29 +2,29 @@
 """Given a GS signed URL and filepath, download data to filepath and verify checksum."""
 import os
 import sys
-import time
 
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
+from getm import iter_content
 from getm.http import http
-from getm import default_chunk_size, download_iter_parts
+from getm.utils import checksum_for_url, indirect_open
+from getm.progress import ProgressBar
 
 
 url = sys.argv[1]
+name = sys.argv[2]
 filepath = os.path.realpath(sys.argv[2])
-sz = http.size(url)
 
-start = time.time()
-print("[", end="", flush=True)
-part_count = 0
-total = 0
-for part_size in download_iter_parts(url, filepath):
-    total += part_size
-    new_part_count = total // default_chunk_size
-    if new_part_count > part_count:
-        print("=", end="", flush=True)
-        part_count = new_part_count
-print("]")
-print()
-print(f"download {sz} bytes in {time.time() - start} seconds")
+def do_download(url, filepath):
+    expected_cs, cs = checksum_for_url(url)
+    assert expected_cs is not None, "No checksum information available!"
+    with ProgressBar(name, http.size(url)) as progress:
+        with indirect_open(filepath) as handle:
+            for part in iter_content(url, concurrency=1):
+                handle.write(part)
+                cs.update(part)
+                progress.add(len(part))
+            assert cs.matches(expected_cs), "Checksum failed!"
+
+do_download(url, filepath)
