@@ -37,17 +37,21 @@ getm https://my-cool-url my-local-file
 
 ## Testing
 
-During tests, signed URLs are generated that point to data in S3 and GS buckets. The data is repopulated
-during each test.
+During tests, signed URLs are generated that point to data in S3 and GS buckets. Data is repopulated during each test.
+You must have credentials available to read and write to the test buckets, and to generate signed URLs.
 
-### Credentials
+### GCP Credentials
 
-To run tests you must be properly credentialed. For S3 you must have access to the test bucket, and sufficient
-privliages to upload data and generate signed URLs. For GS you must have service account credentials privlidged with
-similar access to the GS bucket. The service account are made available by setting the environment variable
+Generating signed URLs during tests requires service account credentials, which are made available to the test suite by
+setting the environment variable
 ```
-export GOOGLE_APPLICATION_CREDENTIALS=my-creds.json
+export GETM_GOOGLE_APPLICATION_CREDENTIALS=my-creds.json
 ```
+
+### AWS Credentials
+
+Follow these [instructions](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) for configuring
+the AWS CLI.
 
 ## Installation
 ```
