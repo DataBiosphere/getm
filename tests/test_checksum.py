@@ -2,11 +2,9 @@
 import io
 import os
 import sys
-import requests
+import hashlib
 import unittest
-import warnings
 from uuid import uuid4
-from random import randint
 
 import boto3
 
@@ -14,7 +12,7 @@ pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noq
 sys.path.insert(0, pkg_root)  # noqa
 
 from getm.reader import http
-from getm.checksum import MB, S3Etag, S3MultiEtag, GSCRC32C, _s3_multipart_layouts, part_count_from_s3_etag
+from getm.checksum import MB, S3MultiEtag, GSCRC32C, _s3_multipart_layouts, part_count_from_s3_etag
 from tests.infra import GS, S3, suppress_warnings
 
 
@@ -34,7 +32,7 @@ class TestChecksum(unittest.TestCase):
         number_of_parts = part_count_from_s3_etag(http.checksums(url)['s3_etag'])
         data = boto3.client("s3").get_object(Bucket=bucket, Key=key)['Body'].read()
         s3etags = S3MultiEtag(http.size(url), number_of_parts)
-        s3etags.update(data)
+        s3etags.update(memoryview(data))
         self.assertTrue(s3etags.matches(expected))
 
     def test_gs_crc32c(self):
@@ -45,7 +43,7 @@ class TestChecksum(unittest.TestCase):
         expected = http.checksums(gs_url)['gs_crc32c']
         crc32c = GSCRC32C()
         data = GS.bucket.blob(key).download_as_bytes()
-        crc32c.update(data)
+        crc32c.update(memoryview(data))
         self.assertTrue(crc32c.matches(expected))
 
     def test_s3_multipart_layouts(self):
