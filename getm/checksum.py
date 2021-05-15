@@ -24,6 +24,16 @@ class GETMChecksum:
     def matches(self, val: str) -> bool:
         raise NotImplementedError()
 
+class MD5(GETMChecksum):
+    def __init__(self, data: Optional[bytes]=None):
+        self._checksum = hashlib.md5(data or b"")
+
+    def update(self, data: BytesLike):
+        self._checksum.update(data)
+
+    def matches(self, val: str) -> bool:
+        return self._checksum.hexdigest() == val
+
 class GSCRC32C(GETMChecksum):
     def __init__(self, data: Optional[bytes]=None):
         self._checksum = google_crc32c.Checksum(data or b"")
