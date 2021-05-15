@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""
-Given a Google Storage cloud native url, generate a signed URL.
+"""Given a Google Storage cloud native url, generate a signed URL.
 
 The environment variable 'GOOGLE_APPLICATION_CREDENTIALS' is expected to point to a service account credentials json
 file.

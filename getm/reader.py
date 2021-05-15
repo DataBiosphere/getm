@@ -56,8 +56,7 @@ class URLRawReader(BaseURLReader):
             yield memoryview(part)
 
 class URLReader(BaseURLReader):
-    """
-    Provide a streaming object to bytes referenced by 'url'. Chunks of data are pre-fetched in the background with
+    """Provide a streaming object to bytes referenced by 'url'. Chunks of data are pre-fetched in the background with
     concurrency='concurrency'.
     """
     def __init__(self, url: str, chunk_size: int, concurrency: int):
@@ -75,8 +74,7 @@ class URLReader(BaseURLReader):
             self.future_parts.put(self._fetch_part, self.url, *part_coord, self._buf.name)
 
     def read(self, sz: int=-1) -> memoryview:
-        """
-        Read at most 'sz' bytes from stream as a memoryview object referencing multiprocessing shared memory. The
+        """Read at most 'sz' bytes from stream as a memoryview object referencing multiprocessing shared memory. The
         caller is expected to call 'release' on each such object.
         """
         if -1 == sz:
@@ -108,8 +106,7 @@ class URLReader(BaseURLReader):
 
     @classmethod
     def iter_content(cls, url: str, chunk_size: int, concurrency: int) -> Generator[memoryview, None, None]:
-        """
-        Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
+        """Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
         objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
         """
         with cls(url, chunk_size, concurrency) as reader:
@@ -193,8 +190,7 @@ class URLReaderKeepAlive(BaseURLReader, Process):
 
     @classmethod
     def iter_content(cls, url: str, chunk_size: int) -> Generator[memoryview, None, None]:
-        """
-        Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
+        """Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
         objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
         """
         with cls(url, chunk_size) as reader:
@@ -241,10 +237,9 @@ def _fetch_part_uo(url: str,
 def iter_content_unordered(url: str,
                            chunk_size: int,
                            concurrency: int) -> Generator[Tuple[int, memoryview], None, None]:
-    """
-    Fetch parts and yield in any order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
-    objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part.
-    This method may offer slightly better performance than 'iter_content'.
+    """Fetch parts and yield in any order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
+    objects that reference multiprocessing shared memory. The caller is expected to call 'release' on each part. This
+    method may offer slightly better performance than 'iter_content'.
     """
     assert 1 <= concurrency
     size = http.size(url)
