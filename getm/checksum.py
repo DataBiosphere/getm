@@ -1,23 +1,36 @@
+"""
+Provide a consistent interface to checksumming, smoothing out the various heterodoxies of cloud native checksums.
+I'm looking at you GS and S3.
+"""
 import base64
-import typing
-import binascii
 import hashlib
+import binascii
 from math import ceil
-from typing import Tuple, List, Set, Optional
+from typing import List, Optional, Union
 
 import google_crc32c
 
 
 MB = 1024 * 1024
+BytesLike = Union[bytes, bytearray, memoryview]
 
-class GSCRC32C:
+class GETMChecksum:
     def __init__(self, data: Optional[bytes]=None):
-        if data is not None:
-            self._checksum = google_crc32c.Checksum(data)
-        else:
-            self._checksum = google_crc32c.Checksum(b"")
+        raise NotImplementedError()
 
-    def update(self, data: bytes):
+    def update(self, data: BytesLike):
+        raise NotImplementedError()
+
+    def matches(self, val: str) -> bool:
+        raise NotImplementedError()
+
+class GSCRC32C(GETMChecksum):
+    def __init__(self, data: Optional[bytes]=None):
+        self._checksum = google_crc32c.Checksum(data or b"")
+
+    def update(self, data: BytesLike):
+        if isinstance(data, memoryview):
+            data = bytes(data)
         self._checksum.update(data)
 
     def hexdigest(self) -> str:
@@ -31,14 +44,14 @@ class GSCRC32C:
     def matches(self, val: str) -> bool:
         return self.strdigest() == val
 
-class S3Etag:
+class S3Etag(GETMChecksum):
     def __init__(self, part_size: int):
         self.part_size = part_size
         self._etags: List[str] = list()
         self._current_md5 = hashlib.md5()
         self._current_part_size = 0
 
-    def update(self, data: bytes):
+    def update(self, data: BytesLike):
         while len(data) + self._current_part_size >= self.part_size:
             to_add = self.part_size - self._current_part_size
             self._current_md5.update(data[:to_add])
@@ -62,13 +75,13 @@ class S3Etag:
     def matches(self, val: str) -> bool:
         return self.strdigest() == val
 
-class S3MultiEtag:
+class S3MultiEtag(GETMChecksum):
     def __init__(self, size: int, number_of_parts: int):
         part_sizes = _s3_multipart_layouts(size, number_of_parts)
         assert 5 >= len(part_sizes), "Too many possible S3 part layouts!"
         self.etags = [S3Etag(part_size) for part_size in part_sizes]
 
-    def update(self, data: bytes):
+    def update(self, data: BytesLike):
         for etag in self.etags:
             etag.update(data)
 
