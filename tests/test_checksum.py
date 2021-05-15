@@ -12,7 +12,7 @@ pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noq
 sys.path.insert(0, pkg_root)  # noqa
 
 from getm.reader import http
-from getm.checksum import MB, S3MultiEtag, GSCRC32C, _s3_multipart_layouts, part_count_from_s3_etag
+from getm.checksum import MB, MD5, S3MultiEtag, GSCRC32C, _s3_multipart_layouts, part_count_from_s3_etag
 from tests.infra import GS, S3, suppress_warnings
 
 
@@ -25,6 +25,12 @@ def tearDownModule():
     GS.client._http.close()
 
 class TestChecksum(unittest.TestCase):
+    def test_md5(self):
+        data = os.urandom(1021)
+        md5 = hashlib.md5(data)
+        getm_md5 = MD5(memoryview(data))
+        self.assertTrue(getm_md5.matches(md5.hexdigest()))
+
     def test_s3_etag(self):
         expected = "85cb78a5c58c243195d5f5fb84027968-4"
         bucket, key = "1000genomes", "analysis.sequence.index"
