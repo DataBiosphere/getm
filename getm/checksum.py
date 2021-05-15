@@ -1,5 +1,4 @@
-"""
-Provide a consistent interface to checksumming, smoothing out the various heterodoxies of cloud native checksums.
+"""Provide a consistent interface to checksumming, smoothing out the various heterodoxies of cloud native checksums.
 I'm looking at you GS and S3.
 """
 import base64
@@ -102,9 +101,7 @@ class S3MultiEtag(GETMChecksum):
         return val in self.strdigests()
 
 def _s3_multipart_layouts(size: int, number_of_parts: int) -> List[int]:
-    """
-    Compute all possible part sizes for 'number_of_parts'. Part size is assumbed to be multiples of 1 MB.
-    """
+    """Compute all possible part sizes for 'number_of_parts'. Part size is assumbed to be multiples of 1 MB."""
     if 1 == number_of_parts:
         return [size]
     assert size >= MB, "Total size less than 1 MB!"

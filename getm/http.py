@@ -32,9 +32,7 @@ class Session(requests.Session):
 
     @lru_cache(maxsize=20)
     def head(self, url: str):
-        """
-        Return the headers from a GET request.
-        """
+        """Return the headers from a GET request."""
         # HEAD on S3 signed urls does no include "Content-Length", so we use GET instead
         resp = self.get(url, stream=True)
         resp.raise_for_status()
@@ -54,8 +52,7 @@ class Session(requests.Session):
         return resp.iter_content(chunk_size=chunk_size)
 
     def name(self, url: str) -> str:
-        """
-        Attempt to discover a filename associated with 'url' using the foolowing methods, in order:
+        """Attempt to discover a filename associated with 'url' using the foolowing methods, in order:
         1. Parse the 'Content-Disposition' header for the 'filename' field
         2. Use the last path component of the 'path' field returned from urllib.parse.urlparse
         """
@@ -71,8 +68,7 @@ class Session(requests.Session):
         raise ValueError(f"Unable to extract name from url '{url}'")
 
     def checksums(self, url: str):
-        """
-        Extract checksum hashes from headers.
+        """Extract checksum hashes from headers.
 
         Checksums for Google Storage:
         The md5 checksum may be missing for some GS objects such as large composite files, however the crc32c checksum

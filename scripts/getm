@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-"""
-Given a GS signed URL and filepath, download data to filepath and verify checksum.
-"""
+"""Given a GS signed URL and filepath, download data to filepath and verify checksum."""
 import os
 import sys
 import time

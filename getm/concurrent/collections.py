@@ -1,6 +1,4 @@
-"""
-Provide objects to manage results from concurrent operations using Executor.
-"""
+"""Provide objects to manage results from concurrent operations using Executor."""
 from collections import deque
 from multiprocessing import cpu_count
 from concurrent.futures import Future, as_completed, wait, Executor, FIRST_COMPLETED
@@ -44,8 +42,7 @@ class _ConcurrentCollection:
         self.abort()
 
 class ConcurrentPool(_ConcurrentCollection):
-    """
-    Unordered collection providing results of concurrent operations. Up to 'concurrency' operations are executed in
+    """Unordered collection providing results of concurrent operations. Up to 'concurrency' operations are executed in
     parallel.
     """
     def __init__(self, executor: Executor, concurrency: int=cpu_count()):
@@ -77,8 +74,7 @@ class ConcurrentPool(_ConcurrentCollection):
             pass
 
 class ConcurrentQueue(_ConcurrentCollection):
-    """
-    FIFO queue providing results of concurrent operations in the order they were submitted. Up to 'concurrency'
+    """FIFO queue providing results of concurrent operations in the order they were submitted. Up to 'concurrency'
     operations are executed in parallel. New operations are executed concurrently as available results are consumed.
     """
     def __init__(self, executor: Executor, concurrency: int=cpu_count()):
