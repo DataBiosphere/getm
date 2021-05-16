@@ -5,7 +5,8 @@ _getm_ provides fast binary reads for HTTP URLs using
 
 Data is downloaded in background processes and made availabe as references to shared memory. There are no buffer
 copies, but memory references must be released by the caller, which makes working with getm a bit different than
-typical Python IO streams. But still easy, and fast.
+typical Python IO streams. But still easy, and fast. In the case of part iteration, memoryview objects are
+release for you.
 
 Python API methods accept a parameter, `concurrency`, which controls the mode of operation of mget:
 1. Default `concurrency == 1`: Download data in a single background process, using a single HTTP request that is kept
@@ -27,7 +28,7 @@ with getm.urlopen(url) as fh:
 # Process data in parts:
 for part in getm.iter_content(url, chunk_size=1024 * 1024):
     my_chunk_processor(part)
-	part.release()
+	# Note that 'part.release()' is not needed in an iterator context
 ```
 
 CLI
