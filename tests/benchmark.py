@@ -10,7 +10,7 @@ from random import randint
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-import getm
+from getm import urlopen, iter_content, checksum, default_chunk_size, reader
 from tests.infra import GS, S3, suppress_warnings
 
 
@@ -46,7 +46,7 @@ class TestBenchmark(unittest.TestCase):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in [None, 4]]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            with getm.urlopen(self.url, concurrency=concurrency) as raw:
+            with urlopen(self.url, concurrency=concurrency) as raw:
                 md5.update(raw.read())
                 while True:
                     d = raw.read()
@@ -56,12 +56,10 @@ class TestBenchmark(unittest.TestCase):
             self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
 
     def test_read_keep_alive(self):
-        tests = [("1", 1024 * 1024 * 1),
-                 ("5", 1024 * 1024 * 5),
-                 ("7", 1024 * 1024 * 7)]
+        tests = [("1", 1024 * 1024 * 1)]
         for test_name, chunk_size in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            with getm.urlopen(self.url, chunk_size, concurrency=1) as raw:
+            with urlopen(self.url, concurrency=1) as raw:
                 while True:
                     d = raw.read(chunk_size)
                     if not d:
@@ -73,7 +71,7 @@ class TestBenchmark(unittest.TestCase):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in [None, 4]]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            for chunk in getm.iter_content(self.url, concurrency=concurrency):
+            for chunk in iter_content(self.url, concurrency=concurrency):
                 md5.update(chunk)
                 chunk.release()
             self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
@@ -82,7 +80,7 @@ class TestBenchmark(unittest.TestCase):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in [1]]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            for chunk in getm.iter_content(self.url, 1024 * 1024 * 5, concurrency=concurrency):
+            for chunk in iter_content(self.url, concurrency=concurrency):
                 md5.update(chunk)
                 chunk.release()
             self.assertEqual(self.expected_md5, base64.b64encode(md5.digest()).decode("utf-8"))
@@ -91,7 +89,7 @@ class TestBenchmark(unittest.TestCase):
         tests = [(f"concurrency={concurrency}", concurrency) for concurrency in range(2,5)]
         for test_name, concurrency in self.duration_subtests(tests):
             md5 = hashlib.md5()
-            for i, chunk in getm.reader.iter_content_unordered(self.url, getm.default_chunk_size, concurrency):
+            for i, chunk in reader.iter_content_unordered(self.url, default_chunk_size, concurrency):
                 md5.update(chunk)
                 chunk.release()
 
