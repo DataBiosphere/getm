@@ -1,6 +1,7 @@
 import os
 from typing import Generator, Optional
 
+from getm.http import http
 from getm import reader, checksum
 
 
@@ -39,7 +40,7 @@ def download_iter_parts(url: str,
                         chunk_size: Optional[int]=None,
                         concurrency: Optional[int]=1) -> Generator[int, None, None]:
     expected_cs, cs = _get_checksums(url)
-    sz = reader.http.size(url)
+    sz = http.size(url)
     if not chunk_size:
         chunk_size = default_chunk_size if 1 != concurrency else default_chunk_size_keep_alive
     try:
@@ -65,13 +66,13 @@ def download_iter_parts(url: str,
         assert cs.matches(expected_cs), "checksum failed!"
 
 def _get_checksums(url):
-    hashes = reader.http.checksums(url)
+    hashes = http.checksums(url)
     if 'gs_crc32c' in hashes:
         expected_cs = hashes['gs_crc32c']
         cs = checksum.GSCRC32C()
     elif 's3_etag' in hashes:
         expected_cs = hashes['s3_etag']
-        size = reader.http.size(url)
+        size = http.size(url)
         number_of_parts = checksum.part_count_from_s3_etag(expected_cs)
         cs = checksum.S3MultiEtag(size, number_of_parts)
     elif 'md5' in hashes:

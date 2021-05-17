@@ -109,3 +109,5 @@ def http_session(session: Session=None, retry: Retry=None) -> Session:
     session.mount("https://", adapter)
     session.mount("http://", adapter)
     return session
+
+http = http_session()
