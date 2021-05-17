@@ -1,8 +1,9 @@
 import os
 from typing import Generator, Optional
 
-from getm.http import http
 from getm import reader, checksum
+from getm.http import http
+from getm.utils import checksum_for_url
 
 
 default_chunk_size = 128 * 1024 * 1024
@@ -39,7 +40,8 @@ def download_iter_parts(url: str,
                         filepath: str,
                         chunk_size: Optional[int]=None,
                         concurrency: Optional[int]=1) -> Generator[int, None, None]:
-    expected_cs, cs = _get_checksums(url)
+    expected_cs, cs = checksum_for_url(url)
+    assert cs is not None
     sz = http.size(url)
     if not chunk_size:
         chunk_size = default_chunk_size if 1 != concurrency else default_chunk_size_keep_alive
@@ -49,8 +51,7 @@ def download_iter_parts(url: str,
         offset = 0
         for part in iter_content(url, chunk_size, concurrency):
             try:
-                if expected_cs:
-                    cs.update(bytes(part))
+                cs.update(bytes(part))
                 os.pwrite(fd, part, offset)
                 part_size = len(part)
                 offset += part_size
@@ -64,20 +65,3 @@ def download_iter_parts(url: str,
         os.close(fd)
     if expected_cs is not None:
         assert cs.matches(expected_cs), "checksum failed!"
-
-def _get_checksums(url):
-    hashes = http.checksums(url)
-    if 'gs_crc32c' in hashes:
-        expected_cs = hashes['gs_crc32c']
-        cs = checksum.GSCRC32C()
-    elif 's3_etag' in hashes:
-        expected_cs = hashes['s3_etag']
-        size = http.size(url)
-        number_of_parts = checksum.part_count_from_s3_etag(expected_cs)
-        cs = checksum.S3MultiEtag(size, number_of_parts)
-    elif 'md5' in hashes:
-        expected_cs = hashes['md5']
-        cs = checksum.hashlib.md5()
-    else:
-        expected_cs = cs = None
-    return expected_cs, cs
