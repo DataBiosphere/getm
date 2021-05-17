@@ -5,11 +5,9 @@ from multiprocessing import Process, Pipe
 from concurrent.futures import ProcessPoolExecutor
 from typing import Optional, Generator, Tuple
 
-from getm.http import http_session
+from getm.http import http, http_session
 from getm.concurrent import ConcurrentQueue, ConcurrentPool, SharedCircularBuffer, SharedBufferArray
 
-
-http = http_session()
 
 class BaseURLReader(io.IOBase):
     def readable(self):

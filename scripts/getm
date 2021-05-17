@@ -7,12 +7,13 @@ import time
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from getm import reader, default_chunk_size, download_iter_parts
+from getm.http import http
+from getm import default_chunk_size, download_iter_parts
 
 
 url = sys.argv[1]
 filepath = os.path.realpath(sys.argv[2])
-sz = reader.http.size(url)
+sz = http.size(url)
 
 start = time.time()
 print("[", end="", flush=True)

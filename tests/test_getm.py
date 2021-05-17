@@ -24,8 +24,7 @@ class TestGetm(unittest.TestCase):
             stack.enter_context(mock.patch("getm.reader.ProcessPoolExecutor"))
             stack.enter_context(mock.patch("getm.reader.ConcurrentQueue"))
             stack.enter_context(mock.patch("getm.reader.ConcurrentPool"))
-            stack.enter_context(mock.patch("getm.http.Session.size"))
-            stack.enter_context(mock.patch("getm.http.Session.raw"))
+            stack.enter_context(mock.patch("getm.reader.http"))
 
             tests = [(None, getm.reader.URLRawReader),
                      (1, getm.reader.URLReaderKeepAlive),
