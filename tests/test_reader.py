@@ -143,7 +143,7 @@ class TestURLReader(_CommonReaderTests, unittest.TestCase):
     def test_read_no_overlap(self):
         """Ensure it is not possible to overlap the circular buffer."""
         chunk_size = len(self.expected_data) // 5
-        with getm.urlopen(self.gs_url, chunk_size, concurrency=2) as reader:
+        with getm.reader.URLReader(self.gs_url, chunk_size, concurrency=2) as reader:
             view = reader.read(1)
             expected_first_byte = bytes(view)
             try:
