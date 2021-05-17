@@ -50,12 +50,12 @@ class _CommonReaderTests:
     def test_interface(self):
         with contextlib.ExitStack() as stack:
             stack.enter_context(mock.patch("getm.reader.http"))
-            stack.enter_context(mock.patch("getm.http.Session"))
+            stack.enter_context(mock.patch("getm.reader.http_session"))
             stack.enter_context(mock.patch("getm.reader.SharedCircularBuffer", size=3))
             stack.enter_context(mock.patch("getm.reader.ProcessPoolExecutor"))
             stack.enter_context(mock.patch("getm.reader.ConcurrentQueue"))
             for concurrency in [None, 4]:
-                with self.get_reader("some_url", 1, 2) as reader:
+                with self.get_reader("http://some_url", 1, 2) as reader:
                     with self.assertRaises(OSError):
                         reader.fileno()
                     with self.assertRaises(OSError):
