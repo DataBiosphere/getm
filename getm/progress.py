@@ -59,7 +59,7 @@ class ProgressBar(ProgressIndicator):
 
     def _print(self, size: int, progress: int, chunks_completed: int, chunks_remaining: int, duration: float):
         bar = "{name} {percent:3d}% [{parts}] {downloaded}/{size} {duration:.2f}s".format(
-            name = self.name,
+            name=self.name,
             percent=floor(progress / size * 100),
             parts="=" * chunks_completed + " " * chunks_remaining,
             downloaded=f"{{:{self._downloaded_field_width}d}}".format(progress),
@@ -78,7 +78,7 @@ class ProgressBar(ProgressIndicator):
 class ProgressLogger(ProgressIndicator):
     def _print(self, size, progress, chunks_completed, chunks_remaining, duration):
         bar = "{name} {percent:3d}% {downloaded}/{size} {duration:.2f}s".format(
-            name = self.name,
+            name=self.name,
             percent=floor(progress / size * 100),
             downloaded=f"{{:{self._downloaded_field_width}d}}".format(progress),
             size=size,
