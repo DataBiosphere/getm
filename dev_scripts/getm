@@ -1,0 +1,12 @@
+#!/usr/bin/env python
+"""Given a GS signed URL and filepath, download data to filepath and verify checksum."""
+import os
+import sys
+
+pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
+sys.path.insert(0, pkg_root)  # noqa
+
+from getm.cli import main
+
+
+main()
