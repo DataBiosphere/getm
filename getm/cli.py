@@ -1,10 +1,5 @@
-#!/usr/bin/env python
-"""Given a GS signed URL and filepath, download data to filepath and verify checksum."""
 import os
 import sys
-
-pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
-sys.path.insert(0, pkg_root)  # noqa
 
 from getm import iter_content
 from getm.http import http
@@ -12,11 +7,7 @@ from getm.utils import checksum_for_url, indirect_open
 from getm.progress import ProgressBar
 
 
-url = sys.argv[1]
-name = sys.argv[2]
-filepath = os.path.realpath(sys.argv[2])
-
-def do_download(url, filepath):
+def do_download(url, name, filepath):
     expected_cs, cs = checksum_for_url(url)
     assert expected_cs is not None, "No checksum information available!"
     with ProgressBar(name, http.size(url)) as progress:
@@ -27,4 +18,8 @@ def do_download(url, filepath):
                 progress.add(len(part))
             assert cs.matches(expected_cs), "Checksum failed!"
 
-do_download(url, filepath)
+def main():
+    url = sys.argv[1]
+    name = sys.argv[2]
+    filepath = os.path.realpath(sys.argv[2])
+    do_download(url, name, filepath)

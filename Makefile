@@ -1,7 +1,7 @@
 include common.mk
 
 MODULES=getm
-SCRIPTS=scripts
+SCRIPTS=dev_scripts
 tests:=$(wildcard tests/test_*.py)
 
 test: lint mypy shared_memory_37 $(tests)
