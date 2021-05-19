@@ -10,7 +10,7 @@ ChunkerCallback = Callable[[int, int, int, int, float], None]
 
 def sizeof_fmt(num, suffix='B'):
     assert 0 <= num
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if num < 1024:
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024
