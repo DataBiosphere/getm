@@ -8,6 +8,14 @@ from typing import Callable
 logger = logging.getLogger(__name__)
 ChunkerCallback = Callable[[int, int, int, int, float], None]
 
+def sizeof_fmt(num, suffix='B'):
+    assert 0 <= num
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if num < 1024:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024
+    return "%.1f%s%s" % (num, 'Yi', suffix)
+
 class Chunker:
     def __init__(self, size: int, num_chunks: int, callback: ChunkerCallback):
         self.size = size
@@ -58,13 +66,13 @@ class ProgressBar(ProgressIndicator):
         self._lock = Lock()
 
     def _print(self, size: int, progress: int, chunks_completed: int, chunks_remaining: int, duration: float):
-        bar = "{name} {percent:3d}% [{parts}] {downloaded}/{size} {duration:.2f}s".format(
+        bar = "{name}   {percent:3d}%   [{parts}]   {size}   {rate}/s   {duration:.2f}s".format(
             name=self.name,
             percent=floor(progress / size * 100),
             parts="=" * chunks_completed + " " * chunks_remaining,
-            downloaded=f"{{:{self._downloaded_field_width}d}}".format(progress),
-            size=size,
-            duration=duration
+            size=sizeof_fmt(size),
+            rate=sizeof_fmt(progress / duration),  # integrated rate
+            duration=duration,
         )
         with self._lock:
             print("\r", bar, end="", flush=True)
@@ -77,11 +85,11 @@ class ProgressBar(ProgressIndicator):
 
 class ProgressLogger(ProgressIndicator):
     def _print(self, size, progress, chunks_completed, chunks_remaining, duration):
-        bar = "{name} {percent:3d}% {downloaded}/{size} {duration:.2f}s".format(
+        bar = "{name} {percent:3d}% {size} {rate} {duration:.6f}s".format(
             name=self.name,
             percent=floor(progress / size * 100),
-            downloaded=f"{{:{self._downloaded_field_width}d}}".format(progress),
-            size=size,
+            size=sizeof_fmt(size),
+            rate=sizeof_fmt(progress / duration),  # integrated rate
             duration=duration
         )
         logger.info(bar)
