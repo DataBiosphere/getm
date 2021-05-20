@@ -4,16 +4,15 @@ import json
 import logging
 import argparse
 from math import ceil
-from concurrent.futures import Future, ProcessPoolExecutor, as_completed
-from typing import List, Optional
+from concurrent.futures import ProcessPoolExecutor
+from typing import List
 
 from getm import urlopen, iter_content, default_chunk_size
 from getm.http import http
 from getm.utils import checksum_for_url, indirect_open
-from getm.progress import ProgressIndicator, ProgressBar, ProgressLogger
+from getm.progress import ProgressBar, ProgressLogger
 
 
-MB = 1024 * 1024
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
