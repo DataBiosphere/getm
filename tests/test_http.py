@@ -11,10 +11,10 @@ from random import randint
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from tests.infra.server import ThreadedLocalServer, BaseHTTPRequestHandler
 from getm.http import HTTPAdapter, Retry, http_session
 
 from tests.infra import GS, S3, suppress_warnings
+from tests.infra.server import ThreadedLocalServer, SilentHandler
 
 
 def setUpModule():
@@ -24,10 +24,6 @@ def setUpModule():
 
 def tearDownModule():
     GS.client._http.close()
-
-class SilentHandler(BaseHTTPRequestHandler):
-    def log_message(self, *args, **kwargs):
-        pass
 
 class HeadHandler(SilentHandler):
     test_headers = dict()
