@@ -35,6 +35,10 @@ class ThreadedLocalServer(threading.Thread):
     def __exit__(self, *args):
         self.shutdown()
 
+class SilentHandler(BaseHTTPRequestHandler):
+    def log_message(self, *args, **kwargs):
+        pass
+
 def _get_port():
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.bind(('', 0))
