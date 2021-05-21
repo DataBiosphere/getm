@@ -41,6 +41,6 @@ concurrency = 4
 
 with ThreadPoolExecutor(max_workers=concurrency) as e:
     with AsyncPartUploader(args.key, bucket, AsyncSet(e, concurrency)) as uploader:
-        for i in range(num_parts -1, -1, -1):
+        for i in range(num_parts -1, -1, -1):  # noqa
             uploader.put_part(i, os.urandom(args.chunk_size))
             print("Uploading part", 1 + i)
