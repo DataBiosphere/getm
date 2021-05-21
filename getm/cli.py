@@ -120,13 +120,6 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
                         type=str,
                         default=None,
                         help="URL to download. This argument has greatest precedence.")
-    parser.add_argument("--filepath", "-O", help="Local file path")
-    parser.add_argument("--manifest", "-m", "-i", help=manifest_arg_help)
-    parser.add_argument("--oneshot-concurrency", default=4)
-    parser.add_argument("--multipart-concurrency", default=2)
-    parser.add_argument("--multipart-threshold", default=default_chunk_size)
-    args = parser.parse_args()
-
     parser.add_argument("--filepath",
                         "-O",
                         help="Local file path")
@@ -164,8 +157,8 @@ def main():
             info['filepath'] = args.filepath
         if args.checksum:
             info['checksum'] = args.checksum
-        if args.checksum_algorthm:
-            info['checksum_algorthm'] = args.checksum_algorthm
+        if args.checksum_algorithm:
+            info['checksum_algorithm'] = args.checksum_algorithm
         manifest = [info]
     else:
         with open(args.manifest) as fh:
