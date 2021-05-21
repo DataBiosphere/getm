@@ -145,6 +145,11 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
                         default=default_chunk_size,
                         help="multipart threshold")
     args = parser.parse_args(args=cli_args)
+    if not (args.url or args.manifest) or (args.url and args.manifest):
+        parser.print_usage()
+        print()
+        print("One of 'url' or '--manifest' must be specified, but not both.")
+        sys.exit(1)
     return args
 
 def main():
