@@ -1,6 +1,7 @@
 """Provide a consistent interface to checksumming, smoothing out the various heterodoxies of cloud native checksums.
 I'm looking at you GS and S3.
 """
+import enum
 import base64
 import hashlib
 import binascii
@@ -100,6 +101,13 @@ class S3MultiEtag(_Hasher):
     def matches(self, val: str) -> bool:
         return val in self.s3_etags()
 
+class NoopChecksum(_Hasher):
+    def update(self, data: BytesLike):
+        pass
+
+    def matches(self, val: str) -> bool:
+        return True
+
 def _s3_multipart_layouts(size: int, number_of_parts: int) -> List[int]:
     """Compute all possible part sizes for 'number_of_parts'. Part size is assumbed to be multiples of 1 MB."""
     if 1 == number_of_parts:
@@ -119,3 +127,36 @@ def part_count_from_s3_etag(s3_etag: str) -> int:
         return 1
     else:
         return int(parts[1])
+
+class Algorithms(enum.Enum):
+    md5 = (MD5,)
+    gs_crc32c = (GSCRC32C,)
+    s3_etag = (S3MultiEtag,)
+    null = (NoopChecksum,)
+
+    def __init__(self, checksum_class: type):
+        self.cls = checksum_class
+
+class GETMChecksum:
+    def __init__(self, expected: str, algorithm: str):
+        self.expected = expected
+        self.algorithm = Algorithms[algorithm]
+
+    def set_s3_size_and_part_count(self, size: int, part_count: int):
+        self._s3_size = size
+        self._s3_part_count = part_count
+
+    @property
+    def cs(self):
+        if not hasattr(self, "_cs"):
+            if Algorithms.s3_etag == self.algorithm:
+                self._cs = self.algorithm.cls(self._s3_size, self._s3_part_count)
+            else:
+                self._cs = self.algorithm.cls()
+        return self._cs
+
+    def update(self, data: BytesLike):
+        self.cs.update(data)
+
+    def matches(self) -> bool:
+        return self.cs.matches(self.expected)
