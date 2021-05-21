@@ -6,7 +6,7 @@ from getm.http import http
 import getm.checksum as checksum
 
 
-def checksum_for_url(url: str) -> Tuple[Optional[str], Optional[checksum.GETMChecksum]]:
+def checksum_for_url(url: str) -> Tuple[Optional[str], Optional[checksum._Hasher]]:
     """Probe headers for checksum information. Return expected checksum value, as well as GETMChecksum instance for
     computing checksum using downloaded data.
     """
