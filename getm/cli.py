@@ -13,6 +13,7 @@ from jsonschema import validate
 
 from getm import urlopen, iter_content, default_chunk_size
 from getm.http import http
+from getm.checksum import Algorithms
 from getm.utils import checksum_for_url, indirect_open
 from getm.progress import ProgressBar, ProgressLogger
 
@@ -84,7 +85,7 @@ manifest_schema = {
             "url": {"type": "string"},
             "filepath": {"type": "string"},
             "checksum": {"type": "string"},
-            "checksum-algorithm": {"type": "string"},
+            "checksum-algorithm": {"type": "string", "enum": [e.name for e in Algorithms]},
         },
         "required": ["url"],
         "dependencies": {
@@ -104,7 +105,7 @@ FILE must conform to the following schema
 
 If 'checksum' and 'checksum-algorithm' is omitted, warnings will be issued if
 checksum information is not contained in headers.  if 'checksum-algorithm' is
-'null', warnings are omitted.
+'null' warnings are omitted.
 """
 
 class HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):

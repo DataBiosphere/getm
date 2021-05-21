@@ -132,6 +132,7 @@ class TestCLI(unittest.TestCase):
         ]
         bad_manifests = [
             [{"filepath": "george"}],  # missing url
+            [{"url": "sdf", "checksum": "foo", "checksum-algorithm": "md4"}],  # incorrect 'checksum-algorithm'
             [{"url": "sdf", "checksum-algorithm": "md5"}],  # 'checksum', 'checksum-algorthm' not paired
             [{"url": "sdf", "checksum": "foo"}],  # 'checksum', 'checksum-algorthm' not paired
         ]
