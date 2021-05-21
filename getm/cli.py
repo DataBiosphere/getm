@@ -1,4 +1,5 @@
 """Download data from http(s) URLs to the local file system, verifying integrity."""
+import os
 import sys
 import json
 import pprint
@@ -6,7 +7,7 @@ import logging
 import argparse
 from math import ceil
 from concurrent.futures import ProcessPoolExecutor
-from typing import List
+from typing import Optional, List
 
 from jsonschema import validate
 
@@ -106,9 +107,12 @@ checksum information is not contained in headers.  if 'checksum-algorithm' is
 'null', warnings are omitted.
 """
 
-def main():
-    """This is the main entry point for the CLI."""
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+class HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
+    def _split_lines(self, text, width):
+        return text.splitlines()
+
+def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=HelpFormatter)
     parser.add_argument("url",
                         nargs="?",
                         metavar="url",
@@ -122,9 +126,36 @@ def main():
     parser.add_argument("--multipart-threshold", default=default_chunk_size)
     args = parser.parse_args()
 
-    if not (args.url or args.manifest):
-        parser.print_usage()
-        sys.exit(1)
+    parser.add_argument("--filepath",
+                        "-O",
+                        help="Local file path")
+    parser.add_argument("--checksum",
+                        "-cs",
+                        help="Expected checksum value")
+    parser.add_argument("--checksum-algorithm",
+                        "-ca",
+                        default="null",
+                        help=(f"Algorithm to compute checksum.{os.linesep}"
+                              "Must be one of {[a.name for a in Algorithms]}"))
+    parser.add_argument("--manifest",
+                        "-m",
+                        "-i",
+                        help=manifest_arg_help)
+    parser.add_argument("--oneshot-concurrency",
+                        default=4,
+                        help="Number of concurrent single part downloads")
+    parser.add_argument("--multipart-concurrency",
+                        default=2,
+                        help="Number of concurrent multipart downloads")
+    parser.add_argument("--multipart-threshold",
+                        default=default_chunk_size,
+                        help="multipart threshold")
+    args = parser.parse_args(args=cli_args)
+    return args
+
+def main():
+    """This is the main entry point for the CLI."""
+    args = parse_args()
 
     if args.url:
         info = dict(url=args.url)
