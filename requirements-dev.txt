@@ -3,5 +3,6 @@ coverage
 mypy
 twine
 boto3
+gs-chunked-io
 google-cloud-storage >= 1.37.1
 -r requirements.txt
