@@ -4,6 +4,7 @@ import sys
 import json
 import pprint
 import logging
+import warnings
 import argparse
 from math import ceil
 from concurrent.futures import ProcessPoolExecutor
@@ -13,13 +14,29 @@ from jsonschema import validate
 
 from getm import urlopen, iter_content, default_chunk_size
 from getm.http import http
-from getm.checksum import Algorithms
-from getm.utils import checksum_for_url, indirect_open
+from getm.utils import indirect_open
 from getm.progress import ProgressBar, ProgressLogger
+from getm.checksum import Algorithms, GETMChecksum, part_count_from_s3_etag
 
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
+
+def checksum_for_url(url: str) -> Optional[GETMChecksum]:
+    """Probe headers for checksum information, return or None."""
+    cs: Optional[GETMChecksum]
+    checksums = http.checksums(url)
+    if 'gs_crc32c' in checksums:
+        cs = GETMChecksum(checksums['gs_crc32c'], "gs_crc32c")
+    elif 's3_etag' in checksums:
+        cs = GETMChecksum(checksums['s3_etag'], "s3_etag")
+        cs.set_s3_size_and_part_count(http.size(url), part_count_from_s3_etag(checksums['s3_etag']))
+    elif 'md5' in checksums:
+        cs = GETMChecksum(checksums['md5'], "md5")
+    else:
+        warnings.warn(f"No checksum information for '{url}'")
+        cs = None
+    return cs
 
 class Progress:
     progress_class: type = ProgressBar
@@ -43,20 +60,24 @@ def download(manifest: List[dict],
         with ProcessPoolExecutor(max_workers=multipart_concurrency) as multipart_executor:
             for info in manifest:
                 url = info['url']
+                if 'checksum' in info:
+                    cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
+                else:
+                    cs = None
                 filepath = info.get('filepath') or http.name(url)
                 if multipart_threshold >= http.size(url):
-                    oneshot_executor.submit(oneshot, url, filepath)
+                    oneshot_executor.submit(oneshot, url, filepath, cs)
                 else:
-                    multipart_executor.submit(multipart, url, filepath)
+                    multipart_executor.submit(multipart, url, filepath, cs)
 
-def oneshot(url: str, filepath: str):
-    expected_cs, cs = checksum_for_url(url)
-    assert expected_cs and cs, "No checksum information available!"
+def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
+    cs = cs or checksum_for_url(url)
     with urlopen(url, concurrency=None) as handle:
         data = handle.read()
         try:
-            cs.update(data)
-            assert cs.matches(expected_cs), "Checksum failed!"
+            if cs:
+                cs.update(data)
+                assert cs.matches(), "Checksum failed!"
             with open(filepath, "wb", buffering=0) as fh:
                 fh.write(data)
             with Progress.get(filepath, url) as progress:
@@ -64,17 +85,17 @@ def oneshot(url: str, filepath: str):
         finally:
             data.release()
 
-def multipart(url: str, filepath: str):
-    expected_cs, cs = checksum_for_url(url)
-    assert expected_cs and cs, "No checksum information available!"
+def multipart(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
+    cs = cs or checksum_for_url(url)
     with Progress.get(filepath, url) as progress:
         with indirect_open(filepath) as handle:
             for part in iter_content(url, concurrency=1):
                 handle.write(part)
-                cs.update(part)
+                if cs:
+                    cs.update(part)
                 progress.add(len(part))
             if cs:
-                assert cs.matches(expected_cs), "Checksum failed!"
+                assert cs.matches(), "Checksum failed!"
 
 # TODO: validate URL format
 manifest_schema = {
@@ -128,7 +149,6 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
                         help="Expected checksum value")
     parser.add_argument("--checksum-algorithm",
                         "-ca",
-                        default="null",
                         help=(f"Algorithm to compute checksum.{os.linesep}"
                               "Must be one of {[a.name for a in Algorithms]}"))
     parser.add_argument("--manifest",
@@ -163,7 +183,7 @@ def main():
         if args.checksum:
             info['checksum'] = args.checksum
         if args.checksum_algorithm:
-            info['checksum_algorithm'] = args.checksum_algorithm
+            info['checksum-algorithm'] = args.checksum_algorithm
         manifest = [info]
     else:
         with open(args.manifest) as fh:

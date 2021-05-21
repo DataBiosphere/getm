@@ -14,7 +14,7 @@ sys.path.insert(0, pkg_root)  # noqa
 from jsonschema.exceptions import ValidationError
 
 from getm.cli import download, oneshot, multipart, _validate_manifest
-from getm.checksum import MD5
+from getm.checksum import GETMChecksum, MD5
 
 from tests.infra import suppress_warnings
 from tests.infra.server import ThreadedLocalServer, SilentHandler
@@ -111,18 +111,43 @@ class TestCLI(unittest.TestCase):
 
     def test_oneshot(self, *args):
         url, expected_data = Server.set_data(1021)
-        expected_cs, cs = md5(expected_data).hexdigest(), MD5()
-        oneshot(url, self.filepath)
-        with open(self.filepath, "rb") as fh:
-            self.assertEqual(expected_data, fh.read())
+
+        with self.subTest("without caller provided checksum"):
+            oneshot(url, self.filepath)
+            with open(self.filepath, "rb") as fh:
+                self.assertEqual(expected_data, fh.read())
+
+        with self.subTest("with caller provided checksum"):
+            cs = GETMChecksum(md5(expected_data).hexdigest(), "md5")
+            oneshot(url, self.filepath, cs)
+            with open(self.filepath, "rb") as fh:
+                self.assertEqual(expected_data, fh.read())
+
+        with self.subTest("Incorrect caller provided checksum"):
+            cs = GETMChecksum("so wrong!", "md5")
+            with self.assertRaises(AssertionError):
+                oneshot(url, self.filepath, cs)
 
     @mock.patch("getm.default_chunk_size", 1021)
     def test_multipart(self, *args):
         url, expected_data = Server.set_data(999983)
-        expected_cs, cs = md5(expected_data).hexdigest(), MD5()
-        multipart(url, self.filepath)
-        with open(self.filepath, "rb") as fh:
-            self.assertEqual(expected_data, fh.read())
+
+        with self.subTest("without caller provided checksum"):
+            multipart(url, self.filepath)
+            with open(self.filepath, "rb") as fh:
+                self.assertEqual(expected_data, fh.read())
+
+        with self.subTest("with caller provided checksum"):
+            # TODO: remove header response from server for this test
+            cs = GETMChecksum(md5(expected_data).hexdigest(), "md5")
+            multipart(url, self.filepath, cs)
+            with open(self.filepath, "rb") as fh:
+                self.assertEqual(expected_data, fh.read())
+
+        with self.subTest("Incorrect caller provided checksum"):
+            cs = GETMChecksum("so wrong!", "md5")
+            with self.assertRaises(AssertionError):
+                multipart(url, self.filepath, cs)
 
     def test_validate_manifest(self, *args):
         good_manifests = [
@@ -145,7 +170,6 @@ class TestCLI(unittest.TestCase):
             with self.subTest("bad"):
                 with self.assertRaises(ValidationError):
                     _validate_manifest(manifest)
-
 
 if __name__ == '__main__':
     unittest.main()
