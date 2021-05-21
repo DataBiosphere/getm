@@ -160,7 +160,7 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
     parser.add_argument("--checksum-algorithm",
                         "-ca",
                         help=(f"Algorithm to compute checksum.{os.linesep}"
-                              "Must be one of {[a.name for a in Algorithms]}"))
+                              f"Must be one of {[a.name for a in Algorithms]}"))
     parser.add_argument("--manifest",
                         "-m",
                         "-i",
