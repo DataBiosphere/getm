@@ -11,7 +11,9 @@ from tempfile import TemporaryDirectory
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from getm.cli import download, oneshot, multipart
+from jsonschema.exceptions import ValidationError
+
+from getm.cli import download, oneshot, multipart, _validate_manifest
 from getm.checksum import MD5
 
 from tests.infra import suppress_warnings
@@ -81,14 +83,14 @@ class TestCLI(unittest.TestCase):
         multipart_threshold = 7
         oneshot_sizes = 3 * [1]
         multipart_sizes = 5 * [1 + multipart_threshold]
-        url_info = [dict(url=Server.set_data(size)[0], filepath=f"{self.temp_dir.name}/{uuid4()}")
+        manifest = [dict(url=Server.set_data(size)[0], filepath=f"{self.temp_dir.name}/{uuid4()}")
                     for size in oneshot_sizes + multipart_sizes]
 
         with self.subTest("routing"):
             with mock.patch("getm.cli.ProcessPoolExecutor", MockExecutor):
                 with mock.patch("getm.cli.oneshot") as mock_oneshot:
                     with mock.patch("getm.cli.multipart") as mock_multipart:
-                        download(url_info, multipart_threshold=multipart_threshold)
+                        download(manifest, multipart_threshold=multipart_threshold)
                         self.assertEqual(len(oneshot_sizes), len(mock_oneshot.call_args_list))
                         self.assertEqual(len(multipart_sizes), len(mock_multipart.call_args_list))
 
@@ -97,11 +99,11 @@ class TestCLI(unittest.TestCase):
                               oneshot_concurrency=oneshot_concurrency,
                               multipart_concurrency=multipart_concurrency):
                 with self.assertRaises(AssertionError):
-                    download(url_info, oneshot_concurrency, multipart_concurrency)
+                    download(manifest, oneshot_concurrency, multipart_concurrency)
 
         with self.subTest("download"):
-            download(url_info, multipart_threshold=multipart_threshold)
-            for info in url_info:
+            download(manifest, multipart_threshold=multipart_threshold)
+            for info in manifest:
                 url = info['url']
                 path = "/" + info['url'].rsplit("/", 1)[-1]
                 with open(info['filepath'], "rb") as fh:
@@ -121,6 +123,28 @@ class TestCLI(unittest.TestCase):
         multipart(url, self.filepath)
         with open(self.filepath, "rb") as fh:
             self.assertEqual(expected_data, fh.read())
+
+    def test_validate_manifest(self, *args):
+        good_manifests = [
+            [{"url": "sdf"}],
+            [{"url": "sdf", "filepath": "george"}],
+            [{"url": "sdf", "checksum": "foo", "checksum-algorithm": "md5"}],
+        ]
+        bad_manifests = [
+            [{"filepath": "george"}],  # missing url
+            [{"url": "sdf", "checksum-algorithm": "md5"}],  # 'checksum', 'checksum-algorthm' not paired
+            [{"url": "sdf", "checksum": "foo"}],  # 'checksum', 'checksum-algorthm' not paired
+        ]
+
+        for manifest in good_manifests:
+            with self.subTest("good"):
+                _validate_manifest(manifest)
+
+        for manifest in bad_manifests:
+            with self.subTest("bad"):
+                with self.assertRaises(ValidationError):
+                    _validate_manifest(manifest)
+
 
 if __name__ == '__main__':
     unittest.main()
