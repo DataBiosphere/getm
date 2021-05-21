@@ -1,2 +1,3 @@
 requests
+jsonschema
 google-crc32c
