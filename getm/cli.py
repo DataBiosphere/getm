@@ -155,7 +155,7 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
     return args
 
 def main():
-    """This is the main entry point for the CLI."""
+    """This is the main CLI entry point."""
     args = parse_args()
 
     if args.url:
