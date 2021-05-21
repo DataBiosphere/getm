@@ -7,7 +7,7 @@ import logging
 import warnings
 import argparse
 from math import ceil
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Optional, List
 
 from jsonschema import validate
@@ -58,6 +58,7 @@ def download(manifest: List[dict],
     assert 1 <= multipart_concurrency
     with ProcessPoolExecutor(max_workers=oneshot_concurrency) as oneshot_executor:
         with ProcessPoolExecutor(max_workers=multipart_concurrency) as multipart_executor:
+            futures = list()
             for info in manifest:
                 url = info['url']
                 if 'checksum' in info:
@@ -66,9 +67,18 @@ def download(manifest: List[dict],
                     cs = None
                 filepath = info.get('filepath') or http.name(url)
                 if multipart_threshold >= http.size(url):
-                    oneshot_executor.submit(oneshot, url, filepath, cs)
+                    f = oneshot_executor.submit(oneshot, url, filepath, cs)
                 else:
-                    multipart_executor.submit(multipart, url, filepath, cs)
+                    f = multipart_executor.submit(multipart, url, filepath, cs)
+                futures.append(f)
+            try:
+                for f in as_completed(futures):
+                    pass
+            finally:
+                # Attempt to halt subprocesses if parent dies prematurely
+                for f in futures:
+                    if not f.done():
+                        f.cancel()
 
 def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
