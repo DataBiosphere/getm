@@ -43,6 +43,7 @@ class MockExecutor:
 
     def submit(self, func, *args, **kwargs):
         func(*args, **kwargs)
+        return mock.MagicMock()
 
 def setUpModule():
     class Handler(SilentHandler):
@@ -90,9 +91,10 @@ class TestCLI(unittest.TestCase):
             with mock.patch("getm.cli.ProcessPoolExecutor", MockExecutor):
                 with mock.patch("getm.cli.oneshot") as mock_oneshot:
                     with mock.patch("getm.cli.multipart") as mock_multipart:
-                        download(manifest, multipart_threshold=multipart_threshold)
-                        self.assertEqual(len(oneshot_sizes), len(mock_oneshot.call_args_list))
-                        self.assertEqual(len(multipart_sizes), len(mock_multipart.call_args_list))
+                        with mock.patch("getm.cli.as_completed"):
+                            download(manifest, multipart_threshold=multipart_threshold)
+                            self.assertEqual(len(oneshot_sizes), len(mock_oneshot.call_args_list))
+                            self.assertEqual(len(multipart_sizes), len(mock_multipart.call_args_list))
 
         for oneshot_concurrency, multipart_concurrency in [(0, 0), (1, 0), (0, 1)]:
             with self.subTest("assertions",
