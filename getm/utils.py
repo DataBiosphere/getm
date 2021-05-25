@@ -5,9 +5,10 @@ from typing import Optional, Tuple, Union
 from getm.http import http
 
 
-def resolve_filepath(url: str, filepath: Optional[str]=None) -> str:
+def resolve_target(url: str, filepath: Optional[str]=None) -> str:
     """
-    Return the absolute filepath.
+    Resolve the absolute target distination for 'url' given optional 'filepath. If 'filepath' is omitted use the
+    current working directory.
     """
     if not filepath:
         filepath = os.path.abspath(http.name(url))

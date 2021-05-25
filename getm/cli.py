@@ -14,7 +14,7 @@ from jsonschema import validate
 
 from getm import urlopen, iter_content, default_chunk_size
 from getm.http import http
-from getm.utils import indirect_open, resolve_filepath
+from getm.utils import indirect_open, resolve_target
 from getm.progress import ProgressBar, ProgressLogger
 from getm.checksum import Algorithms, GETMChecksum, part_count_from_s3_etag
 
@@ -65,7 +65,7 @@ def download(manifest: List[dict],
                     cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
                 else:
                     cs = None
-                filepath = resolve_filepath(url, info.get('filepath'))
+                filepath = resolve_target(url, info.get('filepath'))
                 if multipart_threshold >= http.size(url):
                     f = oneshot_executor.submit(oneshot, url, filepath, cs)
                 else:
