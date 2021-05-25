@@ -1,7 +1,8 @@
 import io
+import time
 from math import ceil
 from collections import deque
-from multiprocessing import Process, Pipe
+from multiprocessing import Process
 from concurrent.futures import ProcessPoolExecutor
 from typing import Optional, Generator, Tuple
 
@@ -127,11 +128,12 @@ class URLReader(BaseURLReader):
         http_session().get_range_readinto(url, start, part_size, buf[start: start + part_size])
         return part_id, start, part_size
 
+READ_WAIT = 0.05
+
 class URLReaderKeepAlive(BaseURLReader, Process):
     def __init__(self, url: str, chunk_size: int):
         self.url = url
         self.chunk_size = chunk_size
-        self.pipe, self.pipesp = Pipe()
         self.size = http.size(url)
         self._start = self._stop = 0
         self.max_read = 40 * self.chunk_size
@@ -145,25 +147,23 @@ class URLReaderKeepAlive(BaseURLReader, Process):
             while True:
                 while stop - start + self.chunk_size >= buf.size:
                     # If there's no more room in the buffer, wait for the reader
-                    try:
-                        start = self.pipesp.recv()
-                        if "STOP" == start:
-                            return
-                    except EOFError:
-                        break
+                    time.sleep(READ_WAIT)
+                    start = buf.start
+                    if -1 == start:
+                        return
                 bytes_read = handle.readinto(buf[stop: stop + self.chunk_size])
                 if not bytes_read:
                     break
                 stop += bytes_read
-                self.pipesp.send(stop)
+                buf.stop = stop
 
     def read(self, sz: int=-1):
         if -1 == sz:
             sz = self.max_read
-        self.pipe.send(self._start)
+        self._buf.start = self._start
         sz = min(sz, self.max_read)
         while sz > self._stop - self._start and self._stop < self.size:
-            self._stop = self.pipe.recv()
+            self._stop = self._buf.stop
         sz = min(sz, self._stop - self._start)
         if sz:
             res = self._buf[self._start: self._start + sz]
@@ -180,9 +180,7 @@ class URLReaderKeepAlive(BaseURLReader, Process):
         return bytes_read
 
     def close(self):
-        self.pipe.send("STOP")
-        self.pipe.close()
-        self.pipesp.close()
+        self._buf.start = -1
         self.join(timeout=5)
         self._buf.close()
         super().close()
@@ -201,10 +199,12 @@ class URLReaderKeepAlive(BaseURLReader, Process):
         """
         with cls(url, chunk_size) as reader:
             start = stop = 0
+            reader._buf.start = 0
             while True:
                 while stop - start < reader.chunk_size and stop < reader.size:
-                    stop = reader.pipe.recv()
-                read_length = min(reader.chunk_size, stop - start)
+                    time.sleep(READ_WAIT)
+                    stop = reader._buf.stop
+                read_length = min(chunk_size, stop - start)
                 if not read_length:
                     break
                 res = reader._buf[start: start + read_length]
@@ -213,7 +213,7 @@ class URLReaderKeepAlive(BaseURLReader, Process):
                     yield res
                 finally:
                     res.release()
-                reader.pipe.send(start)
+                reader._buf.start = start
 
 def _number_of_parts(size: int, chunk_size: int) -> int:
     return ceil(size / chunk_size)

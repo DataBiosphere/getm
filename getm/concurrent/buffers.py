@@ -12,10 +12,13 @@ from typing import ByteString, Optional, Tuple
 #      https://github.com/python/typeshed/issues/4991
 
 
+COORD_FMT = "@q"
+COORD_FIELD_SZ = struct.calcsize(COORD_FMT)
+
 class SharedCircularBuffer:
     def __init__(self, name: Optional[str]=None, size: int=0, create=False):
         if create is True:
-            self._shared_memory = SharedMemory(create=True, size=size)
+            self._shared_memory = SharedMemory(create=True, size=size + 2 * COORD_FIELD_SZ)
             self._did_create = True
         else:
             self._shared_memory = SharedMemory(name)
@@ -23,11 +26,29 @@ class SharedCircularBuffer:
 
     @property
     def size(self):
-        return self._shared_memory.size
+        return self._shared_memory.size - 2 * COORD_FIELD_SZ
 
     @property
     def name(self):
         return self._shared_memory.name
+
+    @property
+    def start(self):
+        start, = struct.unpack(COORD_FMT, self._shared_memory.buf[-2 * COORD_FIELD_SZ:-COORD_FIELD_SZ])
+        return start
+
+    @start.setter
+    def start(self, val):
+        self._shared_memory.buf[-2 * COORD_FIELD_SZ:-COORD_FIELD_SZ] = struct.pack(COORD_FMT, val)
+
+    @property
+    def stop(self):
+        stop, = struct.unpack(COORD_FMT, self._shared_memory.buf[-COORD_FIELD_SZ:])
+        return stop
+
+    @stop.setter
+    def stop(self, val):
+        self._shared_memory.buf[-COORD_FIELD_SZ:] = struct.pack(COORD_FMT, val)
 
     def _circular_coords(self, slc: slice) -> Tuple[int, int, bool]:
         if self.size < slc.stop - slc.start:
@@ -42,7 +63,7 @@ class SharedCircularBuffer:
             raise ValueError("zero length slice not allowed")
         start, stop, wraps = self._circular_coords(slc)
         if wraps:
-            return self._view[start:]
+            return self._view[start:-2 * COORD_FIELD_SZ]
         else:
             return self._view[start:stop]
 
@@ -50,7 +71,7 @@ class SharedCircularBuffer:
         start, stop, wraps = self._circular_coords(slc)
         if wraps:
             wrap_length = self.size - start
-            self._view[start:] = data[:wrap_length]  # type: ignore # TODO remove after mypy 0.812
+            self._view[start:-2 * COORD_FIELD_SZ] = data[:wrap_length]  # type: ignore # TODO remove after mypy 0.812
             self._view[:len(data) - wrap_length] = data[wrap_length:]  # type: ignore # TODO remove after mypy 0.812
         else:
             self._view[start:stop] = data  # type: ignore # TODO remove after mypy 0.812
