@@ -170,7 +170,7 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
                         help="Number of concurrent single part downloads")
     parser.add_argument("--multipart-concurrency",
                         default=2,
-                        help="Number of concurrent multipart downloads")
+                        help="Number of concurrent multipart downloads. Can either be '1' or '2'")
     parser.add_argument("--multipart-threshold",
                         default=default_chunk_size,
                         help="multipart threshold")
@@ -179,6 +179,9 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
         parser.print_usage()
         print()
         print("One of 'url' or '--manifest' must be specified, but not both.")
+        sys.exit(1)
+    if not (1 <= args.multipart_concurrency <= 2):
+        parser.print_usage()
         sys.exit(1)
     return args
 
