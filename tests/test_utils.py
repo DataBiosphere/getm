@@ -1,14 +1,9 @@
 #!/usr/bin/env python
-import io
 import os
 import sys
-import time
 import unittest
-import contextlib
-from math import ceil
 from uuid import uuid4
 from unittest import mock
-from random import randint
 
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
