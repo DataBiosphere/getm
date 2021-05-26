@@ -1,4 +1,5 @@
 import os
+import sys
 from uuid import uuid4
 from typing import Optional, Tuple, Union
 
@@ -38,3 +39,14 @@ class indirect_open:
                 os.remove(self.filepath)
             os.link(self.tmp, self.filepath)
         os.remove(self.tmp)
+
+def available_shared_memory() -> int:
+    """Return the amount of available shared memory. If this cannot be determined, return '-1'."""
+    if "darwin" == sys.platform:
+        return -1
+    elif "linux" == sys.platform:
+        import shutil
+        total, used, free = shutil.disk_usage("/dev/shm")
+        return free
+    else:
+        raise RuntimeError("Your system is not supported.")

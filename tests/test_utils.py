@@ -8,7 +8,7 @@ from unittest import mock
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from getm.utils import resolve_target
+from getm.utils import resolve_target, available_shared_memory
 
 
 class TestUtils(unittest.TestCase):
@@ -26,6 +26,11 @@ class TestUtils(unittest.TestCase):
             for expected, filepath in tests:
                 with self.subTest(expected=expected, filepath=filepath):
                     self.assertEqual(expected, resolve_target("http://foo", filepath))
+
+    def test_available_shared_memory(self):
+        shm_sz = available_shared_memory()
+        if "darwin" == sys.platform:
+            self.assertEqual(-1, shm_sz)
 
 if __name__ == '__main__':
     unittest.main()
