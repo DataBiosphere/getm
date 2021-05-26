@@ -6,6 +6,7 @@ import pprint
 import logging
 import warnings
 import argparse
+import multiprocessing
 from math import ceil
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Optional, List
@@ -187,6 +188,7 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
 
 def main():
     """This is the main CLI entry point."""
+    multiprocessing.set_start_method("fork")
     args = parse_args()
 
     if args.url:
