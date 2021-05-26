@@ -75,7 +75,10 @@ def download(manifest: List[dict],
                 futures.append(f)
             try:
                 for f in as_completed(futures):
-                    pass
+                    try:
+                        f.result()
+                    except Exception:
+                        logger.exception(f"Failed to download '{url}'")
             finally:
                 # Attempt to halt subprocesses if parent dies prematurely
                 for f in futures:
