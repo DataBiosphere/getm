@@ -63,7 +63,7 @@ def download(manifest: List[dict],
     logger.debug(f"multipart buffer size: {multipart_buffer_size}")
     with ProcessPoolExecutor(max_workers=oneshot_concurrency) as oneshot_executor:
         with ProcessPoolExecutor(max_workers=multipart_concurrency) as multipart_executor:
-            futures = list()
+            futures = dict()
             for info in manifest:
                 url = info['url']
                 if 'checksum' in info:
@@ -75,13 +75,13 @@ def download(manifest: List[dict],
                     f = oneshot_executor.submit(oneshot, url, filepath, cs)
                 else:
                     f = multipart_executor.submit(multipart, url, filepath, multipart_buffer_size, cs)
-                futures.append(f)
+                futures[f] = url
             try:
                 for f in as_completed(futures):
                     try:
                         f.result()
                     except Exception:
-                        logger.exception(f"Failed to download '{url}'")
+                        logger.exception(f"Failed to download '{futures[f]}'")
             finally:
                 # Attempt to halt subprocesses if parent dies prematurely
                 for f in futures:
