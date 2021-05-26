@@ -13,10 +13,11 @@ from typing import Optional, List
 
 from jsonschema import validate
 
-from getm import urlopen, iter_content, default_chunk_size
+from getm import default_chunk_size, default_chunk_size_keep_alive
 from getm.http import http
 from getm.utils import indirect_open, resolve_target
 from getm.progress import ProgressBar, ProgressLogger
+from getm.reader import URLRawReader, URLReaderKeepAlive
 from getm.checksum import Algorithms, GETMChecksum, part_count_from_s3_etag
 
 
@@ -87,7 +88,7 @@ def download(manifest: List[dict],
 
 def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
-    with urlopen(url, concurrency=None) as handle:
+    with URLRawReader(url) as handle:
         data = handle.read()
         try:
             if cs:
@@ -104,7 +105,7 @@ def multipart(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
     with Progress.get(filepath, url) as progress:
         with indirect_open(filepath) as handle:
-            for part in iter_content(url, concurrency=1):
+            for part in URLReaderKeepAlive.iter_content(url, default_chunk_size_keep_alive):
                 handle.write(part)
                 if cs:
                     cs.update(part)
