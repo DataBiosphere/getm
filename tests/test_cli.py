@@ -130,26 +130,27 @@ class TestCLI(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 oneshot(url, self.filepath, cs)
 
-    @mock.patch("getm.default_chunk_size", 1021)
+    @mock.patch("getm.cli.default_chunk_size_keep_alive", 1021)
     def test_multipart(self, *args):
         url, expected_data = Server.set_data(999983)
+        buffer_size = 100 * 1021
 
         with self.subTest("without caller provided checksum"):
-            multipart(url, self.filepath)
+            multipart(url, self.filepath, buffer_size)
             with open(self.filepath, "rb") as fh:
                 self.assertEqual(expected_data, fh.read())
 
         with self.subTest("with caller provided checksum"):
             # TODO: remove header response from server for this test
             cs = GETMChecksum(md5(expected_data).hexdigest(), "md5")
-            multipart(url, self.filepath, cs)
+            multipart(url, self.filepath, buffer_size, cs)
             with open(self.filepath, "rb") as fh:
                 self.assertEqual(expected_data, fh.read())
 
         with self.subTest("Incorrect caller provided checksum"):
             cs = GETMChecksum("so wrong!", "md5")
             with self.assertRaises(AssertionError):
-                multipart(url, self.filepath, cs)
+                multipart(url, self.filepath, buffer_size, cs)
 
     def test_validate_manifest(self, *args):
         good_manifests = [
