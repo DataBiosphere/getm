@@ -4,6 +4,7 @@ from functools import lru_cache
 from urllib.parse import urlparse
 
 from requests import codes
+from requests.exceptions import HTTPError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -37,6 +38,16 @@ class Session(requests.Session):
         resp = self.get(url, stream=True)
         resp.raise_for_status()
         return resp.headers
+
+    def accessable(self, url: str) -> bool:
+        try:
+            self.head(url)
+            return True
+        except HTTPError as e:
+            if e.response.status_code in (400, 403, 404):
+                return False
+            else:
+                raise
 
     def size(self, url: str) -> int:
         return int(self.head(url)['Content-Length'])
