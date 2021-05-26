@@ -59,6 +59,8 @@ def download(manifest: List[dict],
              multipart_threshold=default_chunk_size):
     assert 1 <= oneshot_concurrency
     assert 1 <= multipart_concurrency
+    multipart_buffer_size = URLReaderKeepAlive.compute_buffer_size(multipart_concurrency, default_chunk_size_keep_alive)
+    logger.debug(f"multipart buffer size: {multipart_buffer_size}")
     with ProcessPoolExecutor(max_workers=oneshot_concurrency) as oneshot_executor:
         with ProcessPoolExecutor(max_workers=multipart_concurrency) as multipart_executor:
             futures = list()
@@ -72,7 +74,7 @@ def download(manifest: List[dict],
                 if multipart_threshold >= http.size(url):
                     f = oneshot_executor.submit(oneshot, url, filepath, cs)
                 else:
-                    f = multipart_executor.submit(multipart, url, filepath, cs)
+                    f = multipart_executor.submit(multipart, url, filepath, multipart_buffer_size, cs)
                 futures.append(f)
             try:
                 for f in as_completed(futures):
@@ -101,11 +103,11 @@ def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
         finally:
             data.release()
 
-def multipart(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
+def multipart(url: str, filepath: str, buffer_size: int, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
     with Progress.get(filepath, url) as progress:
         with indirect_open(filepath) as handle:
-            for part in URLReaderKeepAlive.iter_content(url, default_chunk_size_keep_alive):
+            for part in URLReaderKeepAlive.iter_content(url, default_chunk_size_keep_alive, buffer_size):
                 handle.write(part)
                 if cs:
                     cs.update(part)
