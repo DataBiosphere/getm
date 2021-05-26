@@ -21,7 +21,8 @@ from getm.checksum import Algorithms, GETMChecksum, part_count_from_s3_etag
 
 
 logging.basicConfig()
-logging.getLogger().setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 def checksum_for_url(url: str) -> Optional[GETMChecksum]:
     """Probe headers for checksum information, return or None."""
