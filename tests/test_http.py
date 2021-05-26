@@ -56,6 +56,27 @@ class TestHTTP(unittest.TestCase):
         # It'd sure be nice to nice to know how to avoid these things in the first place.
         warnings.filterwarnings("ignore", category=ResourceWarning)
 
+    def test_accessable(self):
+        class Handler(SilentHandler):
+            status = 200
+
+            def do_GET(self, *args, **kwargs):
+                self.send_response(self.status)
+                self.end_headers()
+
+        tests = [(True, 200), (False, 400), (False, 403), (False, 404)]
+
+        with ThreadedLocalServer(Handler) as host:
+            with http_session() as http:
+                for expected, Handler.status in tests:
+                    with self.subTest(expected=expected, status=Handler.status):
+                        self.assertEqual(expected, http.accessable(f"{host}/{uuid4()}"))
+
+            with self.subTest("should raise"):
+                Handler.status = 500
+                with self.assertRaises(requests.exceptions.RetryError):
+                    http.accessable(f"{host}/{uuid4()}")
+
     def test_retry(self):
         class Handler(SilentHandler):
             def do_GET(self, *args, **kwargs):
