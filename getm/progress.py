@@ -6,6 +6,7 @@ from typing import Callable
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 ChunkerCallback = Callable[[int, int, int, int, float], None]
 
 def sizeof_fmt(num, suffix='B'):
