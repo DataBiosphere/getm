@@ -7,6 +7,7 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Optional, Generator, Tuple
 
 from getm.http import http, http_session
+from getm.utils import available_shared_memory
 from getm.concurrent import ConcurrentQueue, ConcurrentPool, SharedCircularBuffer, SharedBufferArray
 
 
@@ -131,14 +132,29 @@ class URLReader(BaseURLReader):
 READ_WAIT = 0.05
 
 class URLReaderKeepAlive(BaseURLReader, Process):
-    def __init__(self, url: str, chunk_size: int):
+    def __init__(self, url: str, chunk_size: int, buffer_size: Optional[int]=None):
+        buffer_size = buffer_size or self.compute_buffer_size(1, chunk_size)
+        assert buffer_size >= 3 * chunk_size, "'buffer_size' is too small."
         self.url = url
         self.chunk_size = chunk_size
         self.size = http.size(url)
         self._start = self._stop = 0
-        self.max_read = 15 * self.chunk_size
-        self._buf = SharedCircularBuffer(size=chunk_size + self.max_read, create=True)
+        self.max_read = (buffer_size - chunk_size) * self.chunk_size
+        self._buf = SharedCircularBuffer(size=buffer_size, create=True)
         super().__init__()
+
+    @staticmethod
+    def compute_buffer_size(concurrent_downloads: int, chunk_size: int) -> int:
+        """Compute the largest buffer size given the number of concurrent downloads."""
+        shm_sz = available_shared_memory()
+        if -1 == shm_sz:
+            buffer_size = 100 * chunk_size
+        else:
+            buffer_size = shm_sz // concurrent_downloads
+            buffer_size = (buffer_size // chunk_size - 1) * chunk_size
+            if buffer_size > 100 * chunk_size:
+                buffer_size = 100 * chunk_size
+        return buffer_size
 
     def run(self):
         handle = http_session().raw(self.url)
@@ -193,11 +209,14 @@ class URLReaderKeepAlive(BaseURLReader, Process):
         self.close()
 
     @classmethod
-    def iter_content(cls, url: str, chunk_size: int) -> Generator[memoryview, None, None]:
+    def iter_content(cls,
+                     url: str,
+                     chunk_size: int,
+                     buffer_size: Optional[int]=None) -> Generator[memoryview, None, None]:
         """Fetch parts and yield in order, pre-fetching with concurrency equal to `concurrency`. Parts are 'memoryview'
         objects that reference multiprocessing shared memory.
         """
-        with cls(url, chunk_size) as reader:
+        with cls(url, chunk_size, buffer_size) as reader:
             start = stop = 0
             reader._buf.start = 0
             while True:
