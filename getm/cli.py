@@ -23,7 +23,9 @@ from getm.checksum import Algorithms, GETMChecksum, part_count_from_s3_etag
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+
+def _LOG(func, **kwargs):
+    func(json.dumps(kwargs))
 
 def checksum_for_url(url: str) -> Optional[GETMChecksum]:
     """Probe headers for checksum information, return or None."""
@@ -60,7 +62,7 @@ def download(manifest: List[dict],
     assert 1 <= oneshot_concurrency
     assert 1 <= multipart_concurrency
     multipart_buffer_size = URLReaderKeepAlive.compute_buffer_size(multipart_concurrency, default_chunk_size_keep_alive)
-    logger.debug(f"multipart buffer size: {multipart_buffer_size}")
+    _LOG(logger.debug, multipart_buffer_size=multipart_buffer_size)
     with ProcessPoolExecutor(max_workers=oneshot_concurrency) as oneshot_executor:
         with ProcessPoolExecutor(max_workers=multipart_concurrency) as multipart_executor:
             futures = dict()
@@ -81,7 +83,7 @@ def download(manifest: List[dict],
                     try:
                         f.result()
                     except Exception:
-                        logger.exception(f"Failed to download '{futures[f]}'")
+                        _LOG(logger.exception, message="Download failed!", url=futures[f])
             finally:
                 # Attempt to halt subprocesses if parent dies prematurely
                 for f in futures:
@@ -90,6 +92,11 @@ def download(manifest: List[dict],
 
 def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
+    log_info = dict(message="initiating oneshot download", url=url, expected_checksum=None)
+    if cs:
+        log_info['expected_checksum'] = cs.expected
+        log_info['checksum_algorithm'] = cs.algorithm.name
+    _LOG(logger.info, **log_info)
     with URLRawReader(url) as handle:
         data = handle.read()
         try:
@@ -102,9 +109,15 @@ def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
                 progress.add(len(data))
         finally:
             data.release()
+    _LOG(logger.debug, message="completed oneshot download", url=url)
 
 def multipart(url: str, filepath: str, buffer_size: int, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
+    log_info = dict(message="initiating multipart download", url=url, expected_checksum=None)
+    if cs:
+        log_info['expected_checksum'] = cs.expected
+        log_info['checksum_algorithm'] = cs.algorithm.name
+    _LOG(logger.info, **log_info)
     with Progress.get(filepath, url) as progress:
         with indirect_open(filepath) as handle:
             for part in URLReaderKeepAlive.iter_content(url, default_chunk_size_keep_alive, buffer_size):
@@ -114,6 +127,7 @@ def multipart(url: str, filepath: str, buffer_size: int, cs: Optional[GETMChecks
                 progress.add(len(part))
             if cs:
                 assert cs.matches(), "Checksum failed!"
+    _LOG(logger.debug, message="completed multipart download", url=url)
 
 # TODO: validate URL format
 manifest_schema = {
@@ -135,6 +149,7 @@ manifest_schema = {
 }
 
 def _validate_manifest(manifest: dict):
+    _LOG(logger.debug, message="validating manifest", manifest=manifest, schema=manifest_schema)
     validate(instance=manifest, schema=manifest_schema)
 
 manifest_arg_help = f"""Download URls as specified in a local json FILE
@@ -179,14 +194,19 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
     parser.add_argument("--multipart-concurrency",
                         default=2,
                         help="Number of concurrent multipart downloads. Can either be '1' or '2'")
+    parser.add_argument("-v",
+                        action="store_true",
+                        help="Verbose mode")
+    parser.add_argument("-vv",
+                        action="store_true",
+                        help="Very verbose mode")
     parser.add_argument("--multipart-threshold",
                         default=default_chunk_size,
                         help="multipart threshold")
     args = parser.parse_args(args=cli_args)
     if not (args.url or args.manifest) or (args.url and args.manifest):
         parser.print_usage()
-        print()
-        print("One of 'url' or '--manifest' must be specified, but not both.")
+        _LOG(logger.error, message="One of 'url' or '--manifest' must be specified, but not both.")
         sys.exit(1)
     if not (1 <= args.multipart_concurrency <= 2):
         parser.print_usage()
@@ -197,6 +217,11 @@ def main():
     """This is the main CLI entry point."""
     multiprocessing.set_start_method("fork")
     args = parse_args()
+
+    if args.vv:
+        logger.setLevel(logging.DEBUG)
+    elif args.v:
+        logger.setLevel(logging.INFO)
 
     if args.url:
         info = dict(url=args.url)
@@ -214,8 +239,10 @@ def main():
     _validate_manifest(manifest)
 
     if 1 == len(manifest):
+        _LOG(logger.debug, progress_class=ProgressBar.__name__)
         Progress.progress_class = ProgressBar
     else:
+        _LOG(logger.debug, progress_class=ProgressLogger.__name__)
         Progress.progress_class = ProgressLogger
 
     download(manifest, args.oneshot_concurrency, args.multipart_concurrency, args.multipart_threshold)
