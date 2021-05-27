@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class CLI:
     exit_code = 0
+    continue_after_error = False
 
     @classmethod
     def exit(cls, code: Optional[int]=None):
@@ -48,11 +49,15 @@ class CLI:
     def log_error(cls, **kwargs):
         cls.exit_code = 1
         logger.error(json.dumps(kwargs))
+        if not cls.continue_after_error:
+            cls.exit()
 
     @classmethod
     def log_exception(cls, **kwargs):
         cls.exit_code = 1
         logger.exception(json.dumps(kwargs))
+        if not cls.continue_after_error:
+            cls.exit()
 
 def checksum_for_url(url: str) -> Optional[GETMChecksum]:
     """Probe headers for checksum information, return or None."""
@@ -240,26 +245,32 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
     parser.add_argument("--multipart-threshold",
                         default=default_chunk_size,
                         help="multipart threshold")
+    parser.add_argument("--continue-after-error",
+                        "-c",
+                        action="store_true",
+                        help=("Continue downloading files if an error occurs."
+                              "Exit status is non-zero if any downloads fail."))
     args = parser.parse_args(args=cli_args)
     if not (args.url or args.manifest) or (args.url and args.manifest):
         parser.print_usage()
         CLI.log_error(message="One of 'url' or '--manifest' must be specified, but not both.")
-        CLI.exit(1)
     if not (1 <= args.multipart_concurrency <= 2):
         parser.print_usage()
         CLI.log_error(message="'--multipart_concurrency' must be in the range [1,2], inclusive.")
-        CLI.exit(1)
     return args
+
+def config_cli(args: argparse.Namespace):
+    if args.vv:
+        logger.setLevel(logging.DEBUG)
+    elif args.v:
+        logger.setLevel(logging.INFO)
+    CLI.continue_after_error = args.continue_after_error
 
 def main():
     """This is the main CLI entry point."""
     multiprocessing.set_start_method("fork")
     args = parse_args()
-
-    if args.vv:
-        logger.setLevel(logging.DEBUG)
-    elif args.v:
-        logger.setLevel(logging.INFO)
+    config_cli(args)
 
     if args.url:
         info = dict(url=args.url)
@@ -280,3 +291,5 @@ def main():
 
     _validate_manifest(manifest)
     download(manifest, args.oneshot_concurrency, args.multipart_concurrency, args.multipart_threshold)
+    if CLI.exit_code:
+        CLI.exit()
