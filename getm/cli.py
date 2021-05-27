@@ -8,6 +8,7 @@ import warnings
 import argparse
 import multiprocessing
 from math import ceil
+from functools import lru_cache
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Optional, List
 
@@ -55,14 +56,18 @@ class Progress:
             incriments = ceil(sz / default_chunk_size / 2)
         return cls.progress_class(name, sz, incriments)
 
+@lru_cache()
+def _multipart_buffer_size(concurrency: int) -> int:
+    res = URLReaderKeepAlive.compute_buffer_size(concurrency, default_chunk_size_keep_alive)
+    _LOG(logger.debug, multipart_buffer_size=res)
+    return res
+
 def download(manifest: List[dict],
              oneshot_concurrency: int=4,
              multipart_concurrency: int=2,
              multipart_threshold=default_chunk_size):
     assert 1 <= oneshot_concurrency
     assert 1 <= multipart_concurrency
-    multipart_buffer_size = URLReaderKeepAlive.compute_buffer_size(multipart_concurrency, default_chunk_size_keep_alive)
-    _LOG(logger.debug, multipart_buffer_size=multipart_buffer_size)
     with ProcessPoolExecutor(max_workers=oneshot_concurrency) as oneshot_executor:
         with ProcessPoolExecutor(max_workers=multipart_concurrency) as multipart_executor:
             futures = dict()
@@ -76,7 +81,11 @@ def download(manifest: List[dict],
                 if multipart_threshold >= http.size(url):
                     f = oneshot_executor.submit(oneshot, url, filepath, cs)
                 else:
-                    f = multipart_executor.submit(multipart, url, filepath, multipart_buffer_size, cs)
+                    f = multipart_executor.submit(multipart,
+                                                  url,
+                                                  filepath,
+                                                  _multipart_buffer_size(multipart_concurrency),
+                                                  cs)
                 futures[f] = url
             try:
                 for f in as_completed(futures):
