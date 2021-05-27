@@ -5,7 +5,6 @@ The environment variable 'GOOGLE_APPLICATION_CREDENTIALS' is expected to point t
 file.
 """
 import os
-import sys
 import argparse
 import datetime
 
