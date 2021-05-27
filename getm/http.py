@@ -41,12 +41,16 @@ class Session(requests.Session):
             return resp.headers
 
     def accessable(self, url: str) -> Tuple[bool, Optional[requests.Response]]:
+        """Probe 'url' for a normal response. Upon error, grab the full reponse. In the case of S3 and GS signed URLs,
+        the full response contains extra error information such as expiration.
+        """
         try:
             self.head(url)
             return (True, None)
         except HTTPError as e:
+            resp = self.get(url)
             if e.response.status_code in (400, 403, 404):
-                return (False, e.response)
+                return (False, resp)
             else:
                 raise
 
