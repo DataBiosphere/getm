@@ -241,17 +241,13 @@ def main():
         if args.checksum_algorithm:
             info['checksum-algorithm'] = args.checksum_algorithm
         manifest = [info]
-    else:
-        with open(args.manifest) as fh:
-            manifest = json.loads(fh.read())
-
-    _validate_manifest(manifest)
-
-    if 1 == len(manifest):
         _LOG(logger.debug, progress_class=ProgressBar.__name__)
         Progress.progress_class = ProgressBar
     else:
+        with open(args.manifest) as fh:
+            manifest = json.loads(fh.read())
         _LOG(logger.debug, progress_class=ProgressLogger.__name__)
         Progress.progress_class = ProgressLogger
 
+    _validate_manifest(manifest)
     download(manifest, args.oneshot_concurrency, args.multipart_concurrency, args.multipart_threshold)
