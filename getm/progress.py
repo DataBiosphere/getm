@@ -86,7 +86,7 @@ class ProgressBar(ProgressIndicator):
 
 class ProgressLogger(ProgressIndicator):
     def _print(self, size, progress, chunks_completed, chunks_remaining, duration):
-        bar = "{name} {percent:3d}% {size} {rate} {duration:.6f}s".format(
+        bar = "{name} {percent:3d}% {size} {rate}/s {duration:.6f}s".format(
             name=self.name,
             percent=floor(progress / size * 100),
             size=sizeof_fmt(size),

@@ -2,6 +2,7 @@ import requests
 import warnings
 from functools import lru_cache
 from urllib.parse import urlparse
+from typing import Generator
 
 from requests import codes
 from requests.exceptions import HTTPError
@@ -16,18 +17,18 @@ default_retry = Retry(total=10,
 class Session(requests.Session):
     def get_range_readinto(self, url: str, start: int, size: int, buf: memoryview):
         for _ in range(10):
-            resp = self.get(url, headers=dict(Range=f"bytes={start}-{start + size - 1}"), stream=True)
-            resp.raise_for_status()
-            # Occasionally an incomplete part is provided with OK status. Check size and retry.
-            # Note: Persistent read/readinto on existing connection does not seem to work.
-            if size == resp.raw.readinto(buf):
-                break
-            else:
-                msg = ("HTTP range request returned incomplete part. Retrying "
-                       f"size={size} "
-                       f"content-length={resp.headers['Content-Length']} "
-                       f"status-code={resp.status_code}")
-                warnings.warn(msg)
+            with self.get(url, headers=dict(Range=f"bytes={start}-{start + size - 1}"), stream=True) as resp:
+                resp.raise_for_status()
+                # Occasionally an incomplete part is provided with OK status. Check size and retry.
+                # Note: Persistent read/readinto on existing connection does not seem to work.
+                if size == resp.raw.readinto(buf):
+                    break
+                else:
+                    msg = ("HTTP range request returned incomplete part. Retrying "
+                           f"size={size} "
+                           f"content-length={resp.headers['Content-Length']} "
+                           f"status-code={resp.status_code}")
+                    warnings.warn(msg)
         else:
             raise Exception("Failed to download part")
 
@@ -35,9 +36,9 @@ class Session(requests.Session):
     def head(self, url: str):
         """Return the headers from a GET request."""
         # HEAD on S3 signed urls does no include "Content-Length", so we use GET instead
-        resp = self.get(url, stream=True)
-        resp.raise_for_status()
-        return resp.headers
+        with self.get(url, stream=True) as resp:
+            resp.raise_for_status()
+            return resp.headers
 
     def accessable(self, url: str) -> bool:
         try:
@@ -52,15 +53,11 @@ class Session(requests.Session):
     def size(self, url: str) -> int:
         return int(self.head(url)['Content-Length'])
 
-    def raw(self, url: str):
-        resp = self.get(url, stream=True)
-        resp.raise_for_status()
-        return resp.raw
-
-    def iter_content(self, url: str, chunk_size: int):
-        resp = self.get(url, stream=True)
-        resp.raise_for_status()
-        return resp.iter_content(chunk_size=chunk_size)
+    def iter_content(self, url: str, chunk_size: int) -> Generator[bytes, None, None]:
+        with self.get(url, stream=True) as resp:
+            resp.raise_for_status()
+            for part in resp.iter_content(chunk_size=chunk_size):
+                yield part
 
     def name(self, url: str) -> str:
         """Attempt to discover a filename associated with 'url' using the foolowing methods, in order:

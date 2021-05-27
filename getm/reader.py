@@ -36,18 +36,21 @@ class BaseURLReader(io.IOBase):
 class URLRawReader(BaseURLReader):
     def __init__(self, url: str):
         self.size = http.size(url)
-        self.handle = http.raw(url)
+        self._resp = http.get(url, stream=True)
+        self._resp.raise_for_status()
+        self.handle = self._resp.raw
 
     def read(self, sz: int=-1) -> memoryview:
         if -1 == sz:
             sz = self.size
-        return memoryview(self.handle.read(sz))
+        d = self.handle.read(sz)
+        return memoryview(d)
 
     def readinto(self, buff: bytearray) -> int:
         return self.handle.readinto(buff)
 
     def close(self):
-        self.handle.close()
+        self._resp.close()
         super().close()
 
     @classmethod
@@ -157,21 +160,22 @@ class URLReaderKeepAlive(BaseURLReader, Process):
         return buffer_size
 
     def run(self):
-        handle = http_session().raw(self.url)
-        start = stop = 0
-        with SharedCircularBuffer(self._buf.name) as buf:
-            while True:
-                while stop - start + self.chunk_size >= buf.size:
-                    # If there's no more room in the buffer, wait for the reader
-                    time.sleep(READ_WAIT)
-                    start = buf.start
-                    if -1 == start:
-                        return
-                bytes_read = handle.readinto(buf[stop: stop + self.chunk_size])
-                if not bytes_read:
-                    break
-                stop += bytes_read
-                buf.stop = stop
+        with http_session().get(self.url, stream=True) as resp:
+            handle = resp.raw
+            start = stop = 0
+            with SharedCircularBuffer(self._buf.name) as buf:
+                while True:
+                    while stop - start + self.chunk_size >= buf.size:
+                        # If there's no more room in the buffer, wait for the reader
+                        time.sleep(READ_WAIT)
+                        start = buf.start
+                        if -1 == start:
+                            return
+                    bytes_read = handle.readinto(buf[stop: stop + self.chunk_size])
+                    if not bytes_read:
+                        break
+                    stop += bytes_read
+                    buf.stop = stop
 
     def read(self, sz: int=-1):
         if -1 == sz:
