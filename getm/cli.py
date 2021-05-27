@@ -104,20 +104,25 @@ def download(manifest: List[dict],
             futures = dict()
             for info in manifest:
                 url = info['url']
-                if 'checksum' in info:
-                    cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
+                is_accessable, resp = http.accessable(url)
+                if not is_accessable:
+                    assert resp is not None  # appease mypy
+                    CLI.log_error(message="url innaccessable", text=resp.text, url=url, status_code=resp.status_code)
                 else:
-                    cs = None
-                filepath = resolve_target(url, info.get('filepath'))
-                if multipart_threshold >= http.size(url):
-                    f = oneshot_executor.submit(oneshot, url, filepath, cs)
-                else:
-                    f = multipart_executor.submit(multipart,
-                                                  url,
-                                                  filepath,
-                                                  _multipart_buffer_size(multipart_concurrency),
-                                                  cs)
-                futures[f] = url
+                    if 'checksum' in info:
+                        cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
+                    else:
+                        cs = None
+                    filepath = resolve_target(url, info.get('filepath'))
+                    if multipart_threshold >= http.size(url):
+                        f = oneshot_executor.submit(oneshot, url, filepath, cs)
+                    else:
+                        f = multipart_executor.submit(multipart,
+                                                      url,
+                                                      filepath,
+                                                      _multipart_buffer_size(multipart_concurrency),
+                                                      cs)
+                    futures[f] = url
             try:
                 for f in as_completed(futures):
                     try:
