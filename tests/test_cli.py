@@ -16,7 +16,7 @@ from jsonschema.exceptions import ValidationError
 from getm import cli
 from getm.checksum import GETMChecksum, MD5
 
-from tests.infra import suppress_warnings
+from tests.infra import suppress_warnings, suppress_output
 from tests.infra.server import ThreadedLocalServer, SilentHandler
 
 
@@ -79,6 +79,25 @@ class TestCLI(unittest.TestCase):
         suppress_warnings()
         self.filepath = f"{self.temp_dir.name}/{uuid4()}"
         Server.data = dict()
+
+    @suppress_output
+    def test_cli_args_and_config(self, *args):
+        args = cli.parse_args("-m ~/manifest.json".split())
+
+        error_tests = [
+            ("empty args", []),
+            ("can't supply positional with manifest", "-m manifest.json https://no/wrong".split()),
+            ("multipart concurrencty to high", "-m manifest.json --multipart-concurrency 3".split()),
+            ("multipart concurrencty to low", "-m manifest.json --multipart-concurrency 0".split()),
+        ]
+
+        for msg, arglist in error_tests:
+            cli.CLI.exit_code = 0
+            with self.subTest(message=msg, arglist=arglist):
+                with self.assertRaises(SystemExit) as cm:
+                    cli.parse_args(arglist)
+                self.assertEqual(1, cli.CLI.exit_code)
+                self.assertEqual(1, cm.exception.code)
 
     def test_download(self, *args):
         multipart_threshold = 7
