@@ -1,7 +1,10 @@
 import io
 import os
+import logging
 import warnings
 import datetime
+import contextlib
+from functools import wraps
 from typing import Tuple
 
 import boto3
@@ -67,3 +70,15 @@ def suppress_warnings():
     warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
     # Suppress unclosed socket warnings
     warnings.simplefilter("ignore", ResourceWarning)
+
+def suppress_output(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        logging.disable(logging.CRITICAL)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    return func(*args, **kwargs)
+        finally:
+            logging.disable(logging.NOTSET)
+    return wrapped
