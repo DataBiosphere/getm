@@ -70,7 +70,10 @@ class TestHTTP(unittest.TestCase):
             with http_session() as http:
                 for expected, Handler.status in tests:
                     with self.subTest(expected=expected, status=Handler.status):
-                        self.assertEqual(expected, http.accessable(f"{host}/{uuid4()}"))
+                        accessable, resp = http.accessable(f"{host}/{uuid4()}")
+                        self.assertEqual(expected, accessable)
+                        if resp:
+                            self.assertEqual(Handler.status, resp.status_code)
 
             with self.subTest("should raise"):
                 Handler.status = 500

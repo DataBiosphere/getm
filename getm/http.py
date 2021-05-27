@@ -2,7 +2,7 @@ import requests
 import warnings
 from functools import lru_cache
 from urllib.parse import urlparse
-from typing import Generator
+from typing import Generator, Optional, Tuple
 
 from requests import codes
 from requests.exceptions import HTTPError
@@ -40,13 +40,13 @@ class Session(requests.Session):
             resp.raise_for_status()
             return resp.headers
 
-    def accessable(self, url: str) -> bool:
+    def accessable(self, url: str) -> Tuple[bool, Optional[requests.Response]]:
         try:
             self.head(url)
-            return True
+            return (True, None)
         except HTTPError as e:
             if e.response.status_code in (400, 403, 404):
-                return False
+                return (False, e.response)
             else:
                 raise
 
