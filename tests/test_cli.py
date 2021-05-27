@@ -13,7 +13,7 @@ sys.path.insert(0, pkg_root)  # noqa
 
 from jsonschema.exceptions import ValidationError
 
-from getm.cli import download, oneshot, multipart, _validate_manifest
+from getm import cli
 from getm.checksum import GETMChecksum, MD5
 
 from tests.infra import suppress_warnings
@@ -92,7 +92,7 @@ class TestCLI(unittest.TestCase):
                 with mock.patch("getm.cli.oneshot") as mock_oneshot:
                     with mock.patch("getm.cli.multipart") as mock_multipart:
                         with mock.patch("getm.cli.as_completed"):
-                            download(manifest, multipart_threshold=multipart_threshold)
+                            cli.download(manifest, multipart_threshold=multipart_threshold)
                             self.assertEqual(len(oneshot_sizes), len(mock_oneshot.call_args_list))
                             self.assertEqual(len(multipart_sizes), len(mock_multipart.call_args_list))
 
@@ -101,10 +101,10 @@ class TestCLI(unittest.TestCase):
                               oneshot_concurrency=oneshot_concurrency,
                               multipart_concurrency=multipart_concurrency):
                 with self.assertRaises(AssertionError):
-                    download(manifest, oneshot_concurrency, multipart_concurrency)
+                    cli.download(manifest, oneshot_concurrency, multipart_concurrency)
 
         with self.subTest("download"):
-            download(manifest, multipart_threshold=multipart_threshold)
+            cli.download(manifest, multipart_threshold=multipart_threshold)
             for info in manifest:
                 url = info['url']
                 path = "/" + info['url'].rsplit("/", 1)[-1]
@@ -115,20 +115,20 @@ class TestCLI(unittest.TestCase):
         url, expected_data = Server.set_data(1021)
 
         with self.subTest("without caller provided checksum"):
-            oneshot(url, self.filepath)
+            cli.oneshot(url, self.filepath)
             with open(self.filepath, "rb") as fh:
                 self.assertEqual(expected_data, fh.read())
 
         with self.subTest("with caller provided checksum"):
             cs = GETMChecksum(md5(expected_data).hexdigest(), "md5")
-            oneshot(url, self.filepath, cs)
+            cli.oneshot(url, self.filepath, cs)
             with open(self.filepath, "rb") as fh:
                 self.assertEqual(expected_data, fh.read())
 
         with self.subTest("Incorrect caller provided checksum"):
             cs = GETMChecksum("so wrong!", "md5")
             with self.assertRaises(AssertionError):
-                oneshot(url, self.filepath, cs)
+                cli.oneshot(url, self.filepath, cs)
 
     @mock.patch("getm.cli.default_chunk_size_keep_alive", 1021)
     def test_multipart(self, *args):
@@ -136,21 +136,21 @@ class TestCLI(unittest.TestCase):
         buffer_size = 100 * 1021
 
         with self.subTest("without caller provided checksum"):
-            multipart(url, self.filepath, buffer_size)
+            cli.multipart(url, self.filepath, buffer_size)
             with open(self.filepath, "rb") as fh:
                 self.assertEqual(expected_data, fh.read())
 
         with self.subTest("with caller provided checksum"):
             # TODO: remove header response from server for this test
             cs = GETMChecksum(md5(expected_data).hexdigest(), "md5")
-            multipart(url, self.filepath, buffer_size, cs)
+            cli.multipart(url, self.filepath, buffer_size, cs)
             with open(self.filepath, "rb") as fh:
                 self.assertEqual(expected_data, fh.read())
 
         with self.subTest("Incorrect caller provided checksum"):
             cs = GETMChecksum("so wrong!", "md5")
             with self.assertRaises(AssertionError):
-                multipart(url, self.filepath, buffer_size, cs)
+                cli.multipart(url, self.filepath, buffer_size, cs)
 
     def test_validate_manifest(self, *args):
         good_manifests = [
@@ -167,12 +167,12 @@ class TestCLI(unittest.TestCase):
 
         for manifest in good_manifests:
             with self.subTest("good"):
-                _validate_manifest(manifest)
+                cli._validate_manifest(manifest)
 
         for manifest in bad_manifests:
             with self.subTest("bad"):
                 with self.assertRaises(ValidationError):
-                    _validate_manifest(manifest)
+                    cli._validate_manifest(manifest)
 
 if __name__ == '__main__':
     unittest.main()
