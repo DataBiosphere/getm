@@ -89,6 +89,8 @@ class TestCLI(unittest.TestCase):
             ("can't supply positional with manifest", "-m manifest.json https://no/wrong".split()),
             ("multipart concurrencty to high", "-m manifest.json --multipart-concurrency 3".split()),
             ("multipart concurrencty to low", "-m manifest.json --multipart-concurrency 0".split()),
+            ("continue should not work yet 1", "-c -m manifest.json http//doom".split()),
+            ("continue should not work yet 2", "-c".split()),
         ]
 
         for msg, arglist in error_tests:
@@ -98,6 +100,12 @@ class TestCLI(unittest.TestCase):
                     cli.parse_args(arglist)
                 self.assertEqual(1, cli.CLI.exit_code)
                 self.assertEqual(1, cm.exception.code)
+
+        with self.subTest("continue after error"):
+            self.assertEqual(cli.CLI.continue_after_error, False)
+            args = cli.parse_args("-m manifest.json --continue-after-error".split())
+            cli.config_cli(args)
+            self.assertEqual(cli.CLI.continue_after_error, True)
 
     def test_download(self, *args):
         multipart_threshold = 7
