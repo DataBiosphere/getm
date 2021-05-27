@@ -25,8 +25,34 @@ from getm.checksum import Algorithms, GETMChecksum, part_count_from_s3_etag
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 
-def _LOG(func, **kwargs):
-    func(json.dumps(kwargs))
+class CLI:
+    exit_code = 0
+
+    @classmethod
+    def exit(cls, code: Optional[int]=None):
+        sys.exit(code or cls.exit_code)
+
+    @classmethod
+    def log_debug(cls, **kwargs):
+        logger.debug(json.dumps(kwargs))
+
+    @classmethod
+    def log_info(cls, **kwargs):
+        logger.info(json.dumps(kwargs))
+
+    @classmethod
+    def log_warning(cls, **kwargs):
+        logger.warning(json.dumps(kwargs))
+
+    @classmethod
+    def log_error(cls, **kwargs):
+        cls.exit_code = 1
+        logger.error(json.dumps(kwargs))
+
+    @classmethod
+    def log_exception(cls, **kwargs):
+        cls.exit_code = 1
+        logger.exception(json.dumps(kwargs))
 
 def checksum_for_url(url: str) -> Optional[GETMChecksum]:
     """Probe headers for checksum information, return or None."""
@@ -59,7 +85,7 @@ class Progress:
 @lru_cache()
 def _multipart_buffer_size(concurrency: int) -> int:
     res = URLReaderKeepAlive.compute_buffer_size(concurrency, default_chunk_size_keep_alive)
-    _LOG(logger.debug, multipart_buffer_size=res)
+    CLI.log_debug(multipart_buffer_size=res)
     return res
 
 def download(manifest: List[dict],
@@ -92,7 +118,7 @@ def download(manifest: List[dict],
                     try:
                         f.result()
                     except Exception:
-                        _LOG(logger.exception, message="Download failed!", url=futures[f])
+                        CLI.log_exception(message="Download failed!", url=futures[f])
             finally:
                 # Attempt to halt subprocesses if parent dies prematurely
                 for f in futures:
@@ -105,7 +131,7 @@ def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
     if cs:
         log_info['expected_checksum'] = cs.expected
         log_info['checksum_algorithm'] = cs.algorithm.name
-    _LOG(logger.info, **log_info)
+    CLI.log_info(**log_info)
     with URLRawReader(url) as handle:
         data = handle.read()
         try:
@@ -118,7 +144,7 @@ def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
                 progress.add(len(data))
         finally:
             data.release()
-    _LOG(logger.debug, message="completed oneshot download", url=url)
+    CLI.log_debug(message="completed oneshot download", url=url)
 
 def multipart(url: str, filepath: str, buffer_size: int, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
@@ -126,7 +152,7 @@ def multipart(url: str, filepath: str, buffer_size: int, cs: Optional[GETMChecks
     if cs:
         log_info['expected_checksum'] = cs.expected
         log_info['checksum_algorithm'] = cs.algorithm.name
-    _LOG(logger.info, **log_info)
+    CLI.log_info(**log_info)
     with Progress.get(filepath, url) as progress:
         with indirect_open(filepath) as handle:
             for part in URLReaderKeepAlive.iter_content(url, default_chunk_size_keep_alive, buffer_size):
@@ -136,7 +162,7 @@ def multipart(url: str, filepath: str, buffer_size: int, cs: Optional[GETMChecks
                 progress.add(len(part))
             if cs:
                 assert cs.matches(), "Checksum failed!"
-    _LOG(logger.debug, message="completed multipart download", url=url)
+    CLI.log_debug(message="completed multipart download", url=url)
 
 # TODO: validate URL format
 manifest_schema = {
@@ -158,7 +184,7 @@ manifest_schema = {
 }
 
 def _validate_manifest(manifest: dict):
-    _LOG(logger.debug, message="validating manifest", manifest=manifest, schema=manifest_schema)
+    CLI.log_debug(message="validating manifest", manifest=manifest, schema=manifest_schema)
     validate(instance=manifest, schema=manifest_schema)
 
 manifest_arg_help = f"""Download URls as specified in a local json FILE
@@ -215,11 +241,11 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
     args = parser.parse_args(args=cli_args)
     if not (args.url or args.manifest) or (args.url and args.manifest):
         parser.print_usage()
-        _LOG(logger.error, message="One of 'url' or '--manifest' must be specified, but not both.")
-        sys.exit(1)
+        CLI.log_error(message="One of 'url' or '--manifest' must be specified, but not both.")
+        CLI.exit(1)
     if not (1 <= args.multipart_concurrency <= 2):
         parser.print_usage()
-        sys.exit(1)
+        CLI.exit(1)
     return args
 
 def main():
@@ -241,12 +267,12 @@ def main():
         if args.checksum_algorithm:
             info['checksum-algorithm'] = args.checksum_algorithm
         manifest = [info]
-        _LOG(logger.debug, progress_class=ProgressBar.__name__)
+        CLI.log_debug(progress_class=ProgressBar.__name__)
         Progress.progress_class = ProgressBar
     else:
         with open(args.manifest) as fh:
             manifest = json.loads(fh.read())
-        _LOG(logger.debug, progress_class=ProgressLogger.__name__)
+        CLI.log_debug(progress_class=ProgressLogger.__name__)
         Progress.progress_class = ProgressLogger
 
     _validate_manifest(manifest)
