@@ -7,7 +7,7 @@ import boto3
 parser = argparse.ArgumentParser()
 parser.add_argument("key", type=str)
 parser.add_argument("--bucket", type=str, default=os.environ['GETM_S3_TEST_BUCKET'])
-parser.add_argument("--expires-in", "-e", type=int, default=3600)
+parser.add_argument("--expires-in", "--expires", "-e", type=int, default=3600)
 args = parser.parse_args()
 
 s3_args = dict(Bucket=args.bucket, Key=args.key)

@@ -6,16 +6,20 @@ file.
 """
 import os
 import sys
+import argparse
 import datetime
 
 from google.cloud.storage import Client
 
 
-gs_native_url = sys.argv[1]
-assert gs_native_url.startswith("gs://")
-bucket_name, key = gs_native_url[5:].split("/", 1)
-client = Client.from_service_account_json(os.environ['GOOGLE_APPLICATION_CREDENTIALS'])
-blob = client.bucket(bucket_name).get_blob(key)
+parser = argparse.ArgumentParser()
+parser.add_argument("key", type=str)
+parser.add_argument("--bucket", type=str, default=os.environ['GETM_GS_TEST_BUCKET'])
+parser.add_argument("--expires-in", "--expires", "-e", type=int, default=3600)
+args = parser.parse_args()
+
+client = Client.from_service_account_json(os.environ['GETM_GOOGLE_APPLICATION_CREDENTIALS'])
+blob = client.bucket(args.bucket).get_blob(args.key)
 assert blob is not None
-url = blob.generate_signed_url(datetime.timedelta(days=1), version="v4")
+url = blob.generate_signed_url(datetime.timedelta(seconds=args.expires_in), version="v4")
 print(url)
