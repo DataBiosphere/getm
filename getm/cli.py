@@ -93,7 +93,7 @@ def download(manifest: List[dict],
              multipart_concurrency: int=2,
              multipart_threshold=default_chunk_size):
     assert 1 <= oneshot_concurrency
-    assert 1 <= multipart_concurrency
+    assert 1 <= multipart_concurrency <= 2
     with ProcessPoolExecutor(max_workers=oneshot_concurrency) as oneshot_executor:
         with ProcessPoolExecutor(max_workers=multipart_concurrency) as multipart_executor:
             futures = dict()
@@ -224,9 +224,11 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
                         "-i",
                         help=manifest_arg_help)
     parser.add_argument("--oneshot-concurrency",
+                        type=int,
                         default=4,
                         help="Number of concurrent single part downloads")
     parser.add_argument("--multipart-concurrency",
+                        type=int,
                         default=2,
                         help="Number of concurrent multipart downloads. Can either be '1' or '2'")
     parser.add_argument("-v",
@@ -245,6 +247,7 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
         CLI.exit(1)
     if not (1 <= args.multipart_concurrency <= 2):
         parser.print_usage()
+        CLI.log_error(message="'--multipart_concurrency' must be in the range [1,2], inclusive.")
         CLI.exit(1)
     return args
 

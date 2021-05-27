@@ -96,7 +96,7 @@ class TestCLI(unittest.TestCase):
                             self.assertEqual(len(oneshot_sizes), len(mock_oneshot.call_args_list))
                             self.assertEqual(len(multipart_sizes), len(mock_multipart.call_args_list))
 
-        for oneshot_concurrency, multipart_concurrency in [(0, 0), (1, 0), (0, 1)]:
+        for oneshot_concurrency, multipart_concurrency in [(0, 0), (1, 0), (0, 1), (1, 3)]:
             with self.subTest("assertions",
                               oneshot_concurrency=oneshot_concurrency,
                               multipart_concurrency=multipart_concurrency):
