@@ -87,10 +87,9 @@ class TestCLI(unittest.TestCase):
         error_tests = [
             ("empty args", []),
             ("can't supply positional with manifest", "-m manifest.json https://no/wrong".split()),
-            ("multipart concurrencty to high", "-m manifest.json --multipart-concurrency 3".split()),
-            ("multipart concurrencty to low", "-m manifest.json --multipart-concurrency 0".split()),
-            ("continue should not work yet 1", "-c -m manifest.json http//doom".split()),
-            ("continue should not work yet 2", "-c".split()),
+            ("multipart concurrencty to low", "-m manifest.json --concurrency 0".split()),
+            ("continue should not work here", "-c -m manifest.json http//doom".split()),
+            ("continue should not work here either", "-c".split()),
         ]
 
         for msg, arglist in error_tests:
@@ -123,12 +122,9 @@ class TestCLI(unittest.TestCase):
                             self.assertEqual(len(oneshot_sizes), len(mock_oneshot.call_args_list))
                             self.assertEqual(len(multipart_sizes), len(mock_multipart.call_args_list))
 
-        for oneshot_concurrency, multipart_concurrency in [(0, 0), (1, 0), (0, 1), (1, 3)]:
-            with self.subTest("assertions",
-                              oneshot_concurrency=oneshot_concurrency,
-                              multipart_concurrency=multipart_concurrency):
-                with self.assertRaises(AssertionError):
-                    cli.download(manifest, oneshot_concurrency, multipart_concurrency)
+        with self.subTest("assertions", concurrency=0):
+            with self.assertRaises(AssertionError):
+                cli.download(manifest, 0)
 
         with self.subTest("download"):
             cli.download(manifest, multipart_threshold=multipart_threshold)
