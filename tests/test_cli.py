@@ -31,20 +31,6 @@ class Server:
         cls.data[path] = os.urandom(length)
         return cls.host + path, cls.data[path]
 
-class MockExecutor:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        pass
-
-    def submit(self, func, *args, **kwargs):
-        func(*args, **kwargs)
-        return mock.MagicMock()
-
 def setUpModule():
     class Handler(SilentHandler):
         def do_HEAD(self, *args, **kwargs):
@@ -114,13 +100,13 @@ class TestCLI(unittest.TestCase):
                     for size in oneshot_sizes + multipart_sizes]
 
         with self.subTest("routing"):
-            with mock.patch("getm.cli.ProcessPoolExecutor", MockExecutor):
-                with mock.patch("getm.cli.oneshot") as mock_oneshot:
-                    with mock.patch("getm.cli.multipart") as mock_multipart:
-                        with mock.patch("getm.cli.as_completed"):
-                            cli.download(manifest, multipart_threshold=multipart_threshold)
-                            self.assertEqual(len(oneshot_sizes), len(mock_oneshot.call_args_list))
-                            self.assertEqual(len(multipart_sizes), len(mock_multipart.call_args_list))
+            with mock.patch("getm.cli.oneshot") as mock_oneshot:
+                with mock.patch("getm.cli.multipart") as mock_multipart:
+                    with mock.patch("getm.cli.resolve_target"):
+                        for info in manifest:
+                            cli._download(info['url'], info['filepath'], None, 1, multipart_threshold)
+                        self.assertEqual(len(oneshot_sizes), len(mock_oneshot.call_args_list))
+                        self.assertEqual(len(multipart_sizes), len(mock_multipart.call_args_list))
 
         with self.subTest("assertions", concurrency=0):
             with self.assertRaises(AssertionError):

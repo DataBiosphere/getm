@@ -8,8 +8,7 @@ import warnings
 import argparse
 import multiprocessing
 from math import ceil
-from functools import lru_cache
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from typing import Optional, List
 
 from jsonschema import validate
@@ -20,6 +19,7 @@ from getm.utils import indirect_open, resolve_target
 from getm.progress import ProgressBar, ProgressLogger
 from getm.reader import URLRawReader, URLReaderKeepAlive
 from getm.checksum import Algorithms, GETMChecksum, part_count_from_s3_etag
+from getm.concurrent.collections import ConcurrentHeap
 
 
 logging.basicConfig()
@@ -84,7 +84,6 @@ class Progress:
             incriments = ceil(sz / default_chunk_size / 2)
         return cls.progress_class(name, sz, incriments)
 
-@lru_cache()
 def _multipart_buffer_size(concurrency: int) -> int:
     res = URLReaderKeepAlive.compute_buffer_size(concurrency, default_chunk_size_keep_alive)
     CLI.log_debug(multipart_buffer_size=res)
@@ -104,7 +103,7 @@ def _download(url: str, filepath: str, cs: Optional[GETMChecksum], concurrency: 
 def download(manifest: List[dict], concurrency: int=CLI.cpu_count, multipart_threshold=default_chunk_size):
     assert 1 <= concurrency
     with ProcessPoolExecutor(max_workers=concurrency) as executor:
-        futures = list()
+        cheap = ConcurrentHeap(executor, concurrency)
         for info in manifest:
             url = info['url']
             is_accessable, resp = http.accessable(url)
@@ -118,10 +117,10 @@ def download(manifest: List[dict], concurrency: int=CLI.cpu_count, multipart_thr
                     cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
                 else:
                     cs = None
-                f = executor.submit(_download, url, info.get('filepath'), cs, concurrency, multipart_threshold)
-                futures.append(f)
+                priority = -http.size(url)  # give small files larger priority
+                cheap.priority_put(priority, _download, url, info.get('filepath'), cs, concurrency, multipart_threshold)
         try:
-            for f in as_completed(futures):
+            for f in cheap.iter_futures():
                 try:
                     f.result()
                 except Exception:
@@ -129,9 +128,7 @@ def download(manifest: List[dict], concurrency: int=CLI.cpu_count, multipart_thr
                         CLI.exit()
         finally:
             # Attempt to halt subprocesses if parent dies prematurely
-            for f in futures:
-                if not f.done():
-                    f.cancel()
+            cheap.abort()
 
 def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
