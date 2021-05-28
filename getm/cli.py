@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 class CLI:
     exit_code = 0
     continue_after_error = False
+    cpu_count = multiprocessing.cpu_count()
 
     @classmethod
     def exit(cls, code: Optional[int]=None):
@@ -93,47 +94,38 @@ def _multipart_buffer_size(concurrency: int) -> int:
     CLI.log_debug(multipart_buffer_size=res)
     return res
 
-def download(manifest: List[dict],
-             oneshot_concurrency: int=4,
-             multipart_concurrency: int=2,
-             multipart_threshold=default_chunk_size):
-    assert 1 <= oneshot_concurrency
-    assert 1 <= multipart_concurrency <= 2
-    with ProcessPoolExecutor(max_workers=oneshot_concurrency) as oneshot_executor:
-        with ProcessPoolExecutor(max_workers=multipart_concurrency) as multipart_executor:
-            futures = dict()
-            for info in manifest:
-                url = info['url']
-                is_accessable, resp = http.accessable(url)
-                if not is_accessable:
-                    assert resp is not None  # appease mypy
-                    CLI.log_error(message="url innaccessable", text=resp.text, url=url, status_code=resp.status_code)
+def download(manifest: List[dict], concurrency: int=CLI.cpu_count, multipart_threshold=default_chunk_size):
+    assert 1 <= concurrency
+    with ProcessPoolExecutor(max_workers=concurrency) as executor:
+        futures = dict()
+        for info in manifest:
+            url = info['url']
+            is_accessable, resp = http.accessable(url)
+            if not is_accessable:
+                assert resp is not None  # appease mypy
+                CLI.log_error(message="url innaccessable", text=resp.text, url=url, status_code=resp.status_code)
+            else:
+                if 'checksum' in info:
+                    cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
                 else:
-                    if 'checksum' in info:
-                        cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
-                    else:
-                        cs = None
-                    filepath = resolve_target(url, info.get('filepath'))
-                    if multipart_threshold >= http.size(url):
-                        f = oneshot_executor.submit(oneshot, url, filepath, cs)
-                    else:
-                        f = multipart_executor.submit(multipart,
-                                                      url,
-                                                      filepath,
-                                                      _multipart_buffer_size(multipart_concurrency),
-                                                      cs)
-                    futures[f] = url
-            try:
-                for f in as_completed(futures):
-                    try:
-                        f.result()
-                    except Exception:
-                        CLI.log_exception(message="Download failed!", url=futures[f])
-            finally:
-                # Attempt to halt subprocesses if parent dies prematurely
-                for f in futures:
-                    if not f.done():
-                        f.cancel()
+                    cs = None
+                filepath = resolve_target(url, info.get('filepath'))
+                if multipart_threshold >= http.size(url):
+                    f = executor.submit(oneshot, url, filepath, cs)
+                else:
+                    f = executor.submit(multipart, url, filepath, _multipart_buffer_size(concurrency), cs)
+                futures[f] = url
+        try:
+            for f in as_completed(futures):
+                try:
+                    f.result()
+                except Exception:
+                    CLI.log_exception(message="Download failed!", url=futures[f])
+        finally:
+            # Attempt to halt subprocesses if parent dies prematurely
+            for f in futures:
+                if not f.done():
+                    f.cancel()
 
 def oneshot(url: str, filepath: str, cs: Optional[GETMChecksum]=None):
     cs = cs or checksum_for_url(url)
@@ -233,14 +225,10 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
                         "-m",
                         "-i",
                         help=manifest_arg_help)
-    parser.add_argument("--oneshot-concurrency",
+    parser.add_argument("--concurrency",
                         type=int,
-                        default=4,
+                        default=CLI.cpu_count,
                         help="Number of concurrent single part downloads")
-    parser.add_argument("--multipart-concurrency",
-                        type=int,
-                        default=2,
-                        help="Number of concurrent multipart downloads. Can either be '1' or '2'")
     parser.add_argument("-v",
                         action="store_true",
                         help="Verbose mode")
@@ -259,9 +247,9 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
     if not (args.url or args.manifest) or (args.url and args.manifest):
         parser.print_usage()
         CLI.log_error(message="One of 'url' or '--manifest' must be specified, but not both.")
-    if not (1 <= args.multipart_concurrency <= 2):
+    if not (1 <= args.concurrency):
         parser.print_usage()
-        CLI.log_error(message="'--multipart_concurrency' must be in the range [1,2], inclusive.")
+        CLI.log_error(message="'--concurrency' must be '1' or larger.")
     return args
 
 def config_cli(args: argparse.Namespace):
@@ -295,6 +283,6 @@ def main():
         Progress.progress_class = ProgressLogger
 
     _validate_manifest(manifest)
-    download(manifest, args.oneshot_concurrency, args.multipart_concurrency, args.multipart_threshold)
+    download(manifest, args.concurrency, args.multipart_threshold)
     if CLI.exit_code:
         CLI.exit()
