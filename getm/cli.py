@@ -89,7 +89,11 @@ def _multipart_buffer_size(concurrency: int) -> int:
     CLI.log_debug(multipart_buffer_size=res)
     return res
 
-def _download(url: str, filepath: str, cs: Optional[GETMChecksum], concurrency: int, multipart_threshold: int):
+def _download(url: str,
+              filepath: Optional[str],
+              cs: Optional[GETMChecksum],
+              concurrency: int,
+              multipart_threshold: int):
     filepath = resolve_target(url, filepath)
     try:
         if multipart_threshold >= http.size(url):
