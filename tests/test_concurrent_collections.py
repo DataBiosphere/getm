@@ -5,12 +5,12 @@ import sys
 import time
 import random
 import unittest
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, Future
 
 pkg_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))  # noqa
 sys.path.insert(0, pkg_root)  # noqa
 
-from getm.concurrent import ConcurrentPool, ConcurrentQueue
+from getm.concurrent import ConcurrentPool, ConcurrentQueue, ConcurrentHeap
 
 
 class ConcurrentCollectionTests:
@@ -40,7 +40,7 @@ class ConcurrentCollectionTests:
             fs = self.ac_class(self.executor)
             fs.put(func_that_raises)
             with self.assertRaises(RuntimeError):
-                fs.get()
+                r = fs.get()
 
         with self.subTest("iteration should raise"):
             fs = self.ac_class(self.executor)
@@ -116,6 +116,59 @@ class TestConcurrentQueue(ConcurrentCollectionTests, unittest.TestCase):
                 fs = ConcurrentQueue(self.executor, concurrency=0)
             with self.assertRaises(AssertionError):
                 fs = ConcurrentQueue(self.executor, concurrency=-1)
+
+class TestConcurrentHeap(ConcurrentCollectionTests, unittest.TestCase):
+    ac_class = ConcurrentHeap
+
+    def test_normal(self):
+        numbers = list(range(1, 15))
+        random.shuffle(numbers)
+        with self.subTest("put and get"):
+            fs = ConcurrentHeap(self.executor, 2)
+            for n in numbers:
+                fs.priority_put(n, _wait_and_return, n)
+            returned_numbers = list()
+            while fs:
+                returned_numbers.append(fs.get())
+            self.assertEqual(sorted(returned_numbers), sorted(numbers))
+        with self.subTest("put and iterate"):
+            fs = ConcurrentHeap(self.executor)
+            for n in numbers:
+                fs.priority_put(n, _wait_and_return, n)
+            returned_numbers = [n for n in fs]
+            self.assertEqual(sorted(returned_numbers), sorted(numbers))
+
+    def test_limited_execution(self):
+        numbers = [2,3,5]
+        with self.subTest("limit execution to concurrency"):
+            fs = ConcurrentHeap(self.executor, concurrency=2)
+            for n in numbers:
+                fs.put(_wait_and_return, n)
+            self.assertEqual(2, len(fs._futures))
+        with self.subTest("raise if concurrency <= 0"):
+            with self.assertRaises(AssertionError):
+                fs = ConcurrentHeap(self.executor, concurrency=0)
+            with self.assertRaises(AssertionError):
+                fs = ConcurrentHeap(self.executor, concurrency=-1)
+
+    def test_error(self):
+        expected_count = 11
+
+        def raises():
+            raise Exception("oops")
+
+        fs = ConcurrentHeap(self.executor, concurrency=2)
+        for n in range(expected_count):
+            fs.priority_put(n, raises)
+
+        count = 0
+        for f in fs.iter_futures():
+            try:
+                f.result()
+            except Exception:
+                count += 1
+        self.assertEqual(expected_count, count)
+            
 
 def _wait_and_return(i, wait=None):
     wait = wait or random.random() / 2
