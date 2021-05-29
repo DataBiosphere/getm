@@ -20,7 +20,7 @@ class TestProgress(unittest.TestCase):
             progress = 0
             num_calls = 0
 
-        def on_chunk_complete(size, progress, chunks_completed, chunks_remaining, duration):
+        def on_chunk_complete(size, progress, duration):
             CallbackInfo.size = size
             CallbackInfo.progress = progress
             CallbackInfo.num_calls += 1
@@ -31,7 +31,7 @@ class TestProgress(unittest.TestCase):
                 (7, 21, 2, size),
                 (7, 21, 2, size),
                 (3, 31, 3, size)]
-        c = Chunker(size, 3, on_chunk_complete)
+        c = Chunker(size, size / 3, on_chunk_complete)
         for chunk, expected_progress, expected_calls, expected_size in vals:
             c.add(chunk)
             self.assertEqual(expected_calls, CallbackInfo.num_calls)
