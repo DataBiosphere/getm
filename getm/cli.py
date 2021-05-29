@@ -50,15 +50,11 @@ class CLI:
     def log_error(cls, **kwargs):
         cls.exit_code = 1
         logger.error(json.dumps(kwargs))
-        if not cls.continue_after_error:
-            cls.exit()
 
     @classmethod
     def log_exception(cls, **kwargs):
         cls.exit_code = 1
         logger.exception(json.dumps(kwargs))
-        if not cls.continue_after_error:
-            cls.exit()
 
 def checksum_for_url(url: str) -> Optional[GETMChecksum]:
     """Probe headers for checksum information, return or None."""
@@ -104,6 +100,8 @@ def download(manifest: List[dict], concurrency: int=CLI.cpu_count, multipart_thr
             if not is_accessable:
                 assert resp is not None  # appease mypy
                 CLI.log_error(message="url innaccessable", text=resp.text, url=url, status_code=resp.status_code)
+                if not CLI.continue_after_error:
+                    CLI.exit()
             else:
                 if 'checksum' in info:
                     cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
@@ -121,6 +119,8 @@ def download(manifest: List[dict], concurrency: int=CLI.cpu_count, multipart_thr
                     f.result()
                 except Exception:
                     CLI.log_exception(message="Download failed!", url=futures[f])
+                    if not CLI.continue_after_error:
+                        CLI.exit()
         finally:
             # Attempt to halt subprocesses if parent dies prematurely
             for f in futures:
@@ -247,9 +247,11 @@ def parse_args(cli_args: Optional[List[str]]=None) -> argparse.Namespace:
     if not (args.url or args.manifest) or (args.url and args.manifest):
         parser.print_usage()
         CLI.log_error(message="One of 'url' or '--manifest' must be specified, but not both.")
+        CLI.exit()
     if not (1 <= args.concurrency):
         parser.print_usage()
         CLI.log_error(message="'--concurrency' must be '1' or larger.")
+        CLI.exit()
     return args
 
 def config_cli(args: argparse.Namespace):
