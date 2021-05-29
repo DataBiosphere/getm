@@ -65,6 +65,7 @@ class ProgressBar(ProgressIndicator):
     def __init__(self, name: str, size: int, incriments: int=40):
         super().__init__(name, size, incriments)
         self._lock = Lock()
+        self.name = self.name[:40]
 
     def _print(self, size: int, progress: int, chunks_completed: int, chunks_remaining: int, duration: float):
         bar = "{name}   {percent:3d}%   [{parts}]   {size}   {rate}/s   {duration:.2f}s".format(
