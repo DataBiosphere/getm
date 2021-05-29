@@ -90,10 +90,21 @@ def _multipart_buffer_size(concurrency: int) -> int:
     CLI.log_debug(multipart_buffer_size=res)
     return res
 
+def _download(url: str, filepath: str, cs: Optional[GETMChecksum], concurrency: int, multipart_threshold: int):
+    filepath = resolve_target(url, filepath)
+    try:
+        if multipart_threshold >= http.size(url):
+            oneshot(url, filepath, cs)
+        else:
+            multipart(url, filepath, _multipart_buffer_size(concurrency), cs)
+    except Exception:
+        CLI.log_exception(message="Download failed!", url=url)
+        raise
+
 def download(manifest: List[dict], concurrency: int=CLI.cpu_count, multipart_threshold=default_chunk_size):
     assert 1 <= concurrency
     with ProcessPoolExecutor(max_workers=concurrency) as executor:
-        futures = dict()
+        futures = list()
         for info in manifest:
             url = info['url']
             is_accessable, resp = http.accessable(url)
@@ -107,18 +118,13 @@ def download(manifest: List[dict], concurrency: int=CLI.cpu_count, multipart_thr
                     cs: Optional[GETMChecksum] = GETMChecksum(info['checksum'], info['checksum-algorithm'])
                 else:
                     cs = None
-                filepath = resolve_target(url, info.get('filepath'))
-                if multipart_threshold >= http.size(url):
-                    f = executor.submit(oneshot, url, filepath, cs)
-                else:
-                    f = executor.submit(multipart, url, filepath, _multipart_buffer_size(concurrency), cs)
-                futures[f] = url
+                f = executor.submit(_download, url, info.get('filepath'), cs, concurrency, multipart_threshold)
+                futures.append(f)
         try:
             for f in as_completed(futures):
                 try:
                     f.result()
                 except Exception:
-                    CLI.log_exception(message="Download failed!", url=futures[f])
                     if not CLI.continue_after_error:
                         CLI.exit()
         finally:
