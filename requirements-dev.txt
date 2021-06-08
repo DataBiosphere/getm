@@ -1,8 +1,9 @@
 flake8
 coverage
-mypy
+mypy >= 0.9, < 1.0
 twine
 boto3
 gs-chunked-io
 google-cloud-storage >= 1.37.1
+types-requests
 -r requirements.txt
