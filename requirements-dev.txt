@@ -1,6 +1,6 @@
 flake8
 coverage
-mypy >= 0.9, < 1.0
+mypy >= 0.900, < 1.000
 twine
 boto3
 gs-chunked-io
