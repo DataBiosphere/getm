@@ -112,6 +112,7 @@ class ConcurrentHeap(_ConcurrentCollection):
         super().__init__(executor, concurrency)
         self._futures: Set[Future] = set()
         self._scheduled: List[Any] = list()
+        self._item_id = 0
 
     def __len__(self):
         return len(self._scheduled) + len(self._futures)
@@ -123,7 +124,10 @@ class ConcurrentHeap(_ConcurrentCollection):
 
     def priority_put(self, priority: int, func: Callable, *args, **kwargs):
         # heapq implements a min queue. Negate the priority so heapq.heappop produces the expected ordering
-        heapq.heappush(self._scheduled, (priority * -1, func, args, kwargs))
+        # see priority queue docs: https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
+        q_priority = (-1 * priority, self._item_id)
+        self._item_id += 1
+        heapq.heappush(self._scheduled, (q_priority, func, args, kwargs))
         self._submit()
 
     def put(self, func: Callable, *args, **kwargs):
