@@ -33,7 +33,7 @@ class Session(requests.Session):
             raise Exception("Failed to download part")
 
     @lru_cache(maxsize=20)
-    def head(self, url: str):
+    def head(self, url: str):  # type: ignore
         """Return the headers from a GET request."""
         # HEAD on S3 signed urls does no include "Content-Length", so we use GET instead
         with self.get(url, stream=True) as resp:
