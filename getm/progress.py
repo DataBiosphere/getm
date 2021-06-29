@@ -43,7 +43,7 @@ class Chunker:
 class ProgressIndicator:
     chunker_chunk_size = 1024 * 1024 * 8.0
 
-    def __init__(self, name: str, size: int, incriments: int=40):
+    def __init__(self, name: str, size: int, increments: int=40):
         self.name = name
         self._chunker = Chunker(size, self.chunker_chunk_size, self._print)
         self._downloaded_field_width = len(f"{size}")
@@ -63,11 +63,11 @@ class ProgressIndicator:
             self.add(0)
 
 class ProgressBar(ProgressIndicator):
-    def __init__(self, name: str, size: int, incriments: int=40):
-        super().__init__(name, size, incriments)
+    def __init__(self, name: str, size: int, increments: int=40):
+        super().__init__(name, size, increments)
         self._lock = Lock()
         self.name = self.name[:40]
-        self._chunk_size = size / 40
+        self._chunk_size = size / increments
 
     def _print(self, size: int, progress: int, duration: float):
         if progress == size:
@@ -94,9 +94,9 @@ class ProgressBar(ProgressIndicator):
                 print(flush=True)
 
 class ProgressLogger(ProgressIndicator):
-    def __init__(self, name: str, size: int, incriments: int=40):
-        self.chunker_chunk_size = size / 40
-        super().__init__(name, size, incriments)
+    def __init__(self, name: str, size: int, increments: int=40):
+        self.chunker_chunk_size = size / increments
+        super().__init__(name, size, increments)
 
     def _print(self, size, progress, duration):
         bar = "{name} {percent:3d}% {size} {rate}/s {duration:.6f}s".format(
