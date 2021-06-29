@@ -9,7 +9,7 @@ import argparse
 import multiprocessing
 from math import ceil
 from concurrent.futures import ProcessPoolExecutor
-from typing import Optional, List
+from typing import List, Optional
 
 from jsonschema import validate
 
@@ -192,7 +192,7 @@ manifest_schema = {
     },
 }
 
-def _validate_manifest(manifest: dict):
+def _validate_manifest(manifest: List[dict]):
     CLI.log_debug(message="validating manifest", manifest=manifest, schema=manifest_schema)
     validate(instance=manifest, schema=manifest_schema)
 
