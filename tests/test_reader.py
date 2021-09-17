@@ -3,6 +3,7 @@ import io
 import os
 import sys
 import time
+import warnings
 import unittest
 import contextlib
 from math import ceil
@@ -54,6 +55,7 @@ class _CommonReaderTests:
             stack.enter_context(mock.patch("getm.reader.SharedCircularBuffer", size=3))
             stack.enter_context(mock.patch("getm.reader.ProcessPoolExecutor"))
             stack.enter_context(mock.patch("getm.reader.ConcurrentQueue"))
+            stack.enter_context(mock.patch("getm.reader.available_shared_memory", return_value=1024 ** 3))
             for concurrency in [None, 4]:
                 with self.get_reader("http://some_url", 1, 2) as reader:
                     with self.assertRaises(OSError):
@@ -159,6 +161,19 @@ class TestURLReader(_CommonReaderTests, unittest.TestCase):
                 self.assertEqual(expected_first_byte, first_byte)
             finally:
                 view.release()
+
+    def test_compute_chunk_and_buf_size(self):
+        concurrency = 2
+        threshold_chunk_size = 2048
+        shm_size = threshold_chunk_size * (2 * concurrency + 2)
+        with mock.patch("getm.reader.available_shared_memory", return_value=shm_size):
+            getm.reader.URLReader._compute_chunk_and_buf_size(concurrency, threshold_chunk_size)
+            with self.assertWarns(RuntimeWarning):
+                chunk_size, buf_size = getm.reader.URLReader._compute_chunk_and_buf_size(concurrency,
+                                                                                         threshold_chunk_size + 1)
+                self.assertEqual(threshold_chunk_size, chunk_size)
+            with self.assertRaises(AssertionError):
+                getm.reader.URLReader._compute_chunk_and_buf_size(concurrency, -1)
 
 class TestReaderKeepAlive(_CommonReaderTests, unittest.TestCase):
     @classmethod
