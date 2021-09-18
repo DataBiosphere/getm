@@ -63,6 +63,18 @@ the AWS CLI.
 pip install getm
 ```
 
+### Shared Memory Size Tests
+Before release, tests should be performed on systems with various amounts of shared memory. Good choices are 64M and
+8G. It is also highly encouraged for development work on the shared memory algorithms and configurations of
+`getm`.
+
+Shared memory can be resized on Ubuntu systems, and likely other Linux systems, with the bundled convenience script
+`dev_scripts/resize_shm.sh`. Either sudo or root access is required.:
+```
+sudo dev_scripts/resize_shm.sh 64M
+sudo dev_scripts/resize_shm.sh 8G
+```
+
 ## Links
 Project home page [GitHub](https://github.com/xbrianh/getm)  
 Package distribution [PyPI](https://pypi.org/project/getm/)
