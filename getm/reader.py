@@ -142,7 +142,7 @@ class URLReaderKeepAlive(BaseURLReader, Process):
         self.chunk_size = chunk_size
         self.size = http.size(url)
         self._start = self._stop = 0
-        self.max_read = (buffer_size - chunk_size) * self.chunk_size
+        self.max_read = (buffer_size - chunk_size)
         self._buf = SharedCircularBuffer(size=buffer_size, create=True)
         super().__init__()
 
