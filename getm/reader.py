@@ -1,5 +1,6 @@
 import io
 import time
+import warnings
 from math import ceil
 from collections import deque
 from multiprocessing import Process
@@ -67,18 +68,33 @@ class URLReader(BaseURLReader):
     concurrency='concurrency'.
     """
     def __init__(self, url: str, chunk_size: int, concurrency: int):
-        assert chunk_size >= 1
+        self.chunk_size, buffer_size = self._compute_chunk_and_buf_size(concurrency, chunk_size)
         assert 1 <= concurrency
         self.url = url
         self.size = http.size(url)
-        self.chunk_size = chunk_size
         self._start = self._stop = 0
-        self._buf = SharedCircularBuffer(size=(2 * concurrency + 1) * chunk_size, create=True)
-        self.max_read = concurrency * chunk_size
+        self._buf = SharedCircularBuffer(size=buffer_size, create=True)
+        self.max_read = concurrency * self.chunk_size
         self.executor = ProcessPoolExecutor(max_workers=concurrency)
         self.future_parts = ConcurrentQueue(self.executor, concurrency=concurrency)
         for part_coord in part_coords(self.size, self.chunk_size):
             self.future_parts.put(self._fetch_part, self.url, *part_coord, self._buf.name)
+
+    @classmethod
+    def _compute_chunk_and_buf_size(cls, concurrency: int, proposed_chunk_size: int) -> Tuple[int, int]:
+        shm_sz = available_shared_memory()
+        if -1 == shm_sz:
+            chunk_size = proposed_chunk_size
+        else:
+            chunk_size = min(shm_sz // (2 * concurrency + 2), proposed_chunk_size)
+            if chunk_size < proposed_chunk_size:
+                warnings.warn(f"Chunk size for '{cls.__name__}' has been reduced from '{proposed_chunk_size}' to "
+                              f"'{chunk_size}'. THIS MAY SEVERELY IMPACT THE PERFORMANCE OF GETM. Either request "
+                              "a smaller chunk size, use 'concurrency=1', or contact your administrator about "
+                              "increasing the shared memory available on your system.", RuntimeWarning)
+            buffer_size = (2 * concurrency + 1) * chunk_size
+        assert chunk_size >= 1, "Chunk size too small or concurrency too large"
+        return chunk_size, buffer_size
 
     def read(self, sz: int=-1) -> memoryview:
         """Read at most 'sz' bytes from stream as a memoryview object referencing multiprocessing shared memory. The
