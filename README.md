@@ -79,17 +79,17 @@ sudo dev_scripts/resize_shm.sh 8G
 
 getm relies on the `sharedmemory` module, which was introduced in Python 3.8. Since a large portion of getm's audience
 relies on Python 3.7, a C extension
-[backport](https://github.com/xbrianh/getm/tree/master/getm/concurrent/shared_memory_37) of `sharedmemory` is included.
+[backport](https://github.com/DataBiosphere/getm/tree/master/getm/concurrent/shared_memory_37) of `sharedmemory` is included.
 
 The backport adds significant complexity getm's code base, requiring C/C++ knowlege to maintain, as well as knowledge of
 [CPython](https://github.com/python/cpython). It will be removed when enough getm users have migrated to Python 3.8 or
 greater.
 
 ## Links
-Project home page [GitHub](https://github.com/xbrianh/getm)  
+Project home page [GitHub](https://github.com/DataBiosphere/getm)  
 Package distribution [PyPI](https://pypi.org/project/getm/)
 
 ### Bugs
-Please report bugs, issues, feature requests, etc. on [GitHub](https://github.com/xbrianh/getm).
+Please report bugs, issues, feature requests, etc. on [GitHub](https://github.com/DataBiosphere/getm).
 
-![](https://travis-ci.org/xbrianh/getm.svg?branch=master) ![](https://badge.fury.io/py/getm.svg)
+![](https://travis-ci.org/DataBiosphere/getm.svg?branch=master) ![](https://badge.fury.io/py/getm.svg)
