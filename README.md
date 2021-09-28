@@ -93,3 +93,10 @@ Package distribution [PyPI](https://pypi.org/project/getm/)
 Please report bugs, issues, feature requests, etc. on [GitHub](https://github.com/DataBiosphere/getm).
 
 ![](https://travis-ci.org/DataBiosphere/getm.svg?branch=master) ![](https://badge.fury.io/py/getm.svg)
+
+## Credits
+getm was created by [Brian Hannafious](https://github.com/xbrianh) at the
+[UCSC Genomics Institute](https://ucscgenomics.soe.ucsc.edu/).
+
+Special thanks to [Michael Baumann](https://github.com/mbaumann-broad) and
+[Lon Blauvelt](https://github.com/DailyDreaming) for critical input and testing.
